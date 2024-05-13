@@ -17,6 +17,13 @@ import multiprocessing
 from joblib import Parallel, delayed
 from tqdm import tqdm
 from numba import jit
+import npyx
+try:
+    import cupy
+    gpu_avail = True
+except ImportError:
+    print('Cupy not installed, not available for gaussian smoothing firing rates in CareyEphys')
+    gpu_avail = False
 
 class Spikes:
     def __init__(self, ksDir):
@@ -235,7 +242,7 @@ def estimate_isi_based_FR(spike_times, acquisition_time, fs=CareyConstants.DEF_N
     return 1/isi_arr
 
     # downsample to desired space
-def estimate_gaussconv_based_FR(spike_times, acquisition_time, fs=CareyConstants.DEF_NPX_FS, gaussdev=0.001):
+def estimate_gaussconv_based_FR(spike_times, acquisition_time, fs=CareyConstants.DEF_NPX_FS, gaussdev=0.001, usegpu=True):
     '''
 
     Parameters
@@ -264,7 +271,7 @@ def estimate_gaussconv_based_FR(spike_times, acquisition_time, fs=CareyConstants
     # assign 1 where there's a spike
     fr_arr[spike_indices] = 1 * fs
 
-    myconv = CareyUtils.gaussian_smoothing(fr_arr, sigma)
+    myconv = CareyUtils.gaussian_smoothing(fr_arr, sigma, usegpu=usegpu)
 
     # kernel = CareyUtils.gaussian(0, sigma, np.round(sigma*10))
     # kernel = kernel / np.sum(kernel)
@@ -926,3 +933,30 @@ def compileSessionWise_SpikeCounts(ksDir,units='good', binsize=0.02):
         df[('unit' + str(units[ii]))] = these_counts[0]
 
     return bin_edges, df
+
+def get_sessionwise_firingrate_singleunit(spike_times, time_array):
+    # t_arr = np.arange(0, TOTAL_TIME, 1 / 1000, dtype=float)
+    # padded_spike_train = np.zeros(time_array.shape[0])
+    cupy_spike_train = cupy.zeros(time_array.shape[0])
+    cupy_time_array = cupy.arange(0, TOTAL_TIME, 1 / 1000)
+    cupy_spike_times = cupy.array(spike_times)
+    for spike in tqdm(cupy_spike_times):
+        cupy_spike_train[cupy.argmin(cupy.abs( spike-cupy_time_array ))] = 1
+
+def get_and_save_downsampled_population_firing_rates(dp, downsamp_freq=1000, save_file_loc=None, good_units=None):
+    if good_units is None:
+        good_units = npyx.gl.get_good_units(dp)
+
+    t_arr = np.arange(0, TOTAL_TIME, 1 / downsamp_freq, dtype=float)
+    cupy_t_arr = cupy.array(t_arr)
+    cupy_t_full = cupy.arange(0, TOTAL_TIME, 1 / SAMP_RATE, dtype=float)
+    df = pd.DataFrame(data=t_arr, columns=['time'])
+
+    for neuron in tqdm(good_units):
+        spikes = npyx.spk_t.trn(dp, neuron) / SAMP_RATE
+        fr = CareyEphys.estimate_gaussconv_based_FR(spikes, TOTAL_TIME, fs=SAMP_RATE, gaussdev=0.020)
+        fr_downsampled = cupy.interp(cupy_t_arr, cupy_t_full, cupy.array(fr)).get()
+        df[str(neuron)] = fr_downsampled
+    if save_file_loc is not None:
+        df.to_csv(os.path.join(new_proc, 'sessionwise_firing_rates.csv'))
+

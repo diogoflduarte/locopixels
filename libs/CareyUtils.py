@@ -11,6 +11,14 @@ import scipy.stats
 import datetime
 from sklearn.decomposition import PCA
 from numba import jit
+import math
+try:
+    import cupy
+    import cupyx.scipy.ndimage
+    gpu_avail = True
+except ImportError:
+    print('Cupy not installed, not available for gaussian smoothing firing rates in CareyUtils')
+    gpu_avail = False
 
 def besselFilt(in_sig, sampling_freq, cuttoff_freq, order=2):
 
@@ -379,7 +387,7 @@ def gaussian(mu, sigma, pts):
     return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sigma, 2.)))
 
 
-def gaussian_smoothing(sig, sigma):
+def gaussian_smoothing(sig, sigma, usegpu=False):
     '''
 
     Parameters
@@ -394,7 +402,13 @@ def gaussian_smoothing(sig, sigma):
     kernel = CareyUtils.gaussian(0, sigma, np.round(sigma * 10))
     kernel = kernel / np.sum(kernel)
 
-    smoothed_signal = fft_convolution(sig, kernel)
+    if gpu_avail is False:
+        usegpu = False
+
+    if usegpu is False:
+        smoothed_signal = fft_convolution(sig, kernel)
+    else:
+        smoothed_signal = cupyx.scipy.ndimage.gaussian_filter1d(cupy.array(sig), sigma).get()
     return smoothed_signal
 
 
@@ -424,3 +438,13 @@ def fft_convolution(sig, kernel):
 
 def stripExt(inp):
     return os.path.splitext(inp)[0]
+
+def convert_size(size_bytes):
+    # https://stackoverflow.com/questions/5194057/better-way-to-convert-file-sizes-in-python
+    if size_bytes == 0:
+        return "0B"
+    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+    i = int(math.floor(math.log(size_bytes, 1024)))
+    p = math.pow(1024, i)
+    s = round(size_bytes / p, 2)
+    return "%s %s" % (s, size_name[i])
