@@ -943,7 +943,18 @@ def get_sessionwise_firingrate_singleunit(spike_times, time_array):
     for spike in tqdm(cupy_spike_times):
         cupy_spike_train[cupy.argmin(cupy.abs( spike-cupy_time_array ))] = 1
 
-def get_and_save_downsampled_population_firing_rates(dp, downsamp_freq=1000, save_file_loc=None, good_units=None):
+def get_and_save_downsampled_population_firing_rates(dp,
+                                                     downsamp_freq=1000,
+                                                     save_file_loc=None,
+                                                     good_units=None):
+    '''
+    estimates firing rates given a neuropixels directory
+    :param dp:              the data directory
+    :param downsamp_freq:   default 1000
+    :param save_file_loc:   default None won't save
+    :param good_units:      default None for all good unitsm use any units you want (1 for instance)
+    :return: df:            dataframe with time and firing rate for each unit
+    '''
     if good_units is None:
         good_units = npyx.gl.get_good_units(dp)
 
@@ -959,4 +970,4 @@ def get_and_save_downsampled_population_firing_rates(dp, downsamp_freq=1000, sav
         df[str(neuron)] = fr_downsampled
     if save_file_loc is not None:
         df.to_csv(os.path.join(new_proc, 'sessionwise_firing_rates.csv'))
-
+    return df
