@@ -12,6 +12,7 @@ import datetime
 from sklearn.decomposition import PCA
 from numba import jit
 import math
+import pandas as pd
 try:
     import cupy
     import cupyx.scipy.ndimage
@@ -298,7 +299,6 @@ def zscore(in_matrix, ax=0, method='std'):
 
     return out_matrix
 
-
 def dimensionality_estimation_pca(Y, fraction_holdout=0.1, n_folds=10, n_recon_iter=100):
     """implementation of the dimensionality estimation by cross validation in PCA
     proposed in Alex William's website: http://alexhwilliams.info/itsneuronalblog/2018/02/26/crossval/
@@ -386,7 +386,6 @@ def gaussian(mu, sigma, pts):
 
     return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sigma, 2.)))
 
-
 def gaussian_smoothing(sig, sigma, usegpu=False):
     '''
 
@@ -410,7 +409,6 @@ def gaussian_smoothing(sig, sigma, usegpu=False):
     else:
         smoothed_signal = cupyx.scipy.ndimage.gaussian_filter1d(cupy.array(sig), sigma).get()
     return smoothed_signal
-
 
 @jit(nopython=True)
 def gaussian_kernel_convolution(sig, kernel):
@@ -448,3 +446,35 @@ def convert_size(size_bytes):
     p = math.pow(1024, i)
     s = round(size_bytes / p, 2)
     return "%s %s" % (s, size_name[i])
+
+def get_stride_indices_from_signal(signal, threshold=0.01, min_stride_duration=50, max_stride_duration=1000):
+    '''
+
+    :param signal:
+    :param threshold:
+    :param min_stride_duration:
+    :param max_stride_duration:
+    :return:
+    '''
+    # Ensure the input array is a numpy array
+    signal = np.array(signal, dtype=float)
+    # Create an array to hold the stride indices
+    stride_indices = np.zeros_like(signal, dtype=int)
+    # Compute the difference between consecutive elements
+    diff_signal = np.diff(signal)
+    # Find indices where the signal resets (negative difference)
+    reset_indices = np.where(diff_signal < -threshold)[0]
+    # Initialize stride index
+    stride_count = 1
+    start_idx = 0
+    for reset_idx in reset_indices:
+        if (reset_idx-start_idx) < min_stride_duration or (reset_idx-start_idx) > max_stride_duration:
+            continue
+        else:
+            stride_indices[start_idx:reset_idx + 1] = stride_count
+            stride_count += 1
+            start_idx = reset_idx + 1
+    # Assign the last stride index to the remaining part of the signal
+    stride_indices[start_idx:] = stride_count
+
+    return stride_indices
