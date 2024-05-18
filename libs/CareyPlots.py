@@ -296,3 +296,23 @@ def CSalignedSS(ss, cs, binsize=0.01, window=[-0.05, 0.05]):
         data_bunch = np.hstack((data_bunch, this_ss_subset-c))
 
     plt.hist(data_bunch, bin_edges)
+
+def ridgeplot(data, x=None, y=None, by=None, linewidth=1, spacing=1.0, multiplier=1.0, color='k', alpha=None,
+                    visibleframe=False, zscore=False):
+    if isinstance(data, np.ndarray):
+        if data.ndim is not 2:
+            raise ValueError('Dimensions different from 2 not supported')
+        n_xpts, n_lines = data.shape
+
+        if zscore is True:
+            data = CareyUtils.zscore(data)
+
+        data = data*multiplier + np.tile(np.arange(n_lines)*spacing, (n_xpts, 1))
+        if x is None:
+            x = np.arange(n_xpts)
+
+        ax = plt.gca()
+        plt.plot(x, data, color=color, linewidth=linewidth, alpha=alpha);
+        ax.axes.get_yaxis().set_ticks([])
+        ax.axes.get_xaxis().set_visible(visibleframe)
+        ax.axes.get_yaxis().set_visible(visibleframe)

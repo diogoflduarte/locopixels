@@ -13,6 +13,7 @@ from sklearn.decomposition import PCA
 from numba import jit
 import math
 import pandas as pd
+from tqdm import tqdm
 try:
     import cupy
     import cupyx.scipy.ndimage
@@ -447,7 +448,7 @@ def convert_size(size_bytes):
     s = round(size_bytes / p, 2)
     return "%s %s" % (s, size_name[i])
 
-def get_stride_indices_from_signal(signal, threshold=0.01, min_stride_duration=50, max_stride_duration=1000):
+def get_stride_indices_from_phase(signal, threshold=0.001, min_stride_duration=50, max_stride_duration=1000, verbose=False):
     '''
 
     :param signal:
@@ -456,25 +457,42 @@ def get_stride_indices_from_signal(signal, threshold=0.01, min_stride_duration=5
     :param max_stride_duration:
     :return:
     '''
-    # Ensure the input array is a numpy array
-    signal = np.array(signal, dtype=float)
-    # Create an array to hold the stride indices
-    stride_indices = np.zeros_like(signal, dtype=int)
-    # Compute the difference between consecutive elements
-    diff_signal = np.diff(signal)
-    # Find indices where the signal resets (negative difference)
-    reset_indices = np.where(diff_signal < -threshold)[0]
-    # Initialize stride index
-    stride_count = 1
-    start_idx = 0
-    for reset_idx in reset_indices:
-        if (reset_idx-start_idx) < min_stride_duration or (reset_idx-start_idx) > max_stride_duration:
-            continue
-        else:
-            stride_indices[start_idx:reset_idx + 1] = stride_count
-            stride_count += 1
-            start_idx = reset_idx + 1
-    # Assign the last stride index to the remaining part of the signal
-    stride_indices[start_idx:] = stride_count
+    # # Create an array to hold the stride indices
+    # stride_indices = np.zeros_like(signal, dtype=int)
+    # # Compute the difference between consecutive elements
+    # diff_signal = np.diff(signal)
+    # # Find indices where the signal resets (negative difference)
+    # reset_indices = np.where(diff_signal < -threshold)[0]
+    # # Initialize stride index
+    # stride_count = 1
+    # start_idx = 0
+    # for reset_idx in reset_indices:
+    #     if (reset_idx-start_idx) < min_stride_duration or (reset_idx-start_idx) > max_stride_duration:
+    #         continue
+    #     else:
+    #         stride_indices[start_idx:reset_idx + 1] = stride_count
+    #         stride_count += 1
+    #         start_idx = reset_idx + 1
+    # # Assign the last stride index to the remaining part of the signal
+    # stride_indices[start_idx:] = stride_count
+    #
+    # return stride_indices
 
-    return stride_indices
+    maxpeaks = scipy.signal.find_peaks(signal)[0]
+    minpeaks = scipy.signal.find_peaks(-signal)[0]
+    # stride_indices = np.zeros_like(signal, dtype=int)
+    # for idx in tqdm(minpeaks, disable= not verbose):
+    #     stride_indices[idx:] += 1
+    # for idx in tqdm(np.arange(1, minpeaks.shape[0] + 1), disable= not verbose):
+    #     max_idx = signal[stride_indices == idx - 1].argmax()
+    #     next_stride = idx
+    #     stride_indices[max_idx:next_stride] = 0
+    # return stride_indices
+    if minpeaks[0] > maxpeaks[0]:
+        maxpeaks = maxpeaks[1:]
+    if minpeaks[-1] > maxpeaks[-1]:
+        minpeaks = minpeaks[:-1]
+    stride_indices = np.zeros_like(signal, dtype=int)
+    for ii in tqdm(range(minpeaks.shape[0]), disable = not verbose):
+        stride_indices[minpeaks[ii]:maxpeaks[ii]] = ii + 1
+    return  stride_indices
