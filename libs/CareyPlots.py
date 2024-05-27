@@ -5,9 +5,11 @@ from CareyConstants import CareyConstants
 import CareyUtils
 import seaborn as sns
 import cmocean
+import cmcrameri
 from matplotlib.collections import LineCollection
 import scipy.stats
 from tqdm import tqdm
+
 
 def multiLinePlot(data, colors, linewidth=1, alpha=0.5, x=None):
     plt.figure()
@@ -316,3 +318,44 @@ def ridgeplot(data, x=None, y=None, by=None, linewidth=1, spacing=1.0, multiplie
         ax.axes.get_yaxis().set_ticks([])
         ax.axes.get_xaxis().set_visible(visibleframe)
         ax.axes.get_yaxis().set_visible(visibleframe)
+
+def plot3D(df, axis1='PC1', axis2='PC2', axis3='PC3', colorby='phase', colormap=cmocean.cm.phase):
+    ax = []
+    MSIZE = 0.5
+    fig = plt.figure(figsize=(12, 12))
+    gs = plt.matplotlib.gridspec.GridSpec(3, 2, width_ratios=[2, 1])
+    ax.append(fig.add_subplot(gs[:, 0], projection='3d'))
+    ax[0].scatter(df[axis1], df[axis2], df[axis3], c=df['phase'], cmap=colormap,
+                  s=MSIZE, rasterized=True)
+    ax[0].set_xlabel(axis1)
+    ax[0].set_ylabel(axis2)
+    ax[0].set_zlabel(axis3)
+    ax[0].set_facecolor((1, 1, 1, 0))
+    ax[0].grid(False)
+
+    ax.append(fig.add_subplot(gs[0, 1]))
+    sc = sns.scatterplot(data=df, x=axis1, y=axis2,
+                         hue='phase', palette=colormap, estimator=None, s=MSIZE, ax=ax[1], rasterized=True)
+    elev = 130
+    azim = -76
+    ax[0].view_init(elev, azim)
+
+    ax.append(fig.add_subplot(gs[1, 1]))
+    sns.scatterplot(data=df, x=axis1, y=axis3,
+                    hue='phase', palette=colormap, estimator=None, s=MSIZE, ax=ax[2], rasterized=True)
+
+    ax.append(fig.add_subplot(gs[2, 1]))
+    sns.scatterplot(data=df, x=axis2, y=axis3,
+                    hue='phase', palette=colormap, estimator=None, s=MSIZE, ax=ax[3], rasterized=True)
+
+    for ii in np.arange(1, len(ax)):
+        ax[ii].legend_.remove()
+        # ax[ii].set_xlim((-80, 80))
+        # ax[ii].set_ylim((-80, 80))
+        ax[ii].set_aspect('equal', adjustable='box')
+
+    # Adjust layout
+    plt.tight_layout()
+    plt.show()
+
+    return fig, ax

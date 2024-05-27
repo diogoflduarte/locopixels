@@ -49,15 +49,7 @@ c4 = pd.merge(cell_types, confidence, on='cluster_id')
 c4 = pd.merge(c4, cluster_info, on='cluster_id')
 
 MFs = c4.cluster_id[np.logical_and(c4.predicted_cell_type=='MFB', c4.confidence_ratio>3)].values
-
-##
-example_unit = MFs[0]
-spikes = npyx.spk_t.trn(dp, example_unit)/ SAMP_RATE
-
-# start = time.clock()
-# fr = CareyEphys.estimate_gaussconv_based_FR(spikes, TOTAL_TIME, fs=SAMP_RATE, gaussdev=0.020)
-# stop = time.clock()-start
-
+selected_MFs = ['time', 317, 322, 351, 354, 367, 393, 421, 542, 453, 457, 467, 479, 500, 501, 503, 507, 601, 602, 604, 611, 613]
 
 ## iterate through all the good units and save them in a dataframe
 # todo: should turn this into a function
@@ -407,3 +399,4 @@ latents = [1, 3]
 plt.figure()
 plt.plot(lds.sample(T)[0][:, latents[0]])
 plt.plot(lds.sample(T)[0][:, latents[1]])
+

@@ -31,15 +31,15 @@ def interpolate(X, n_samples):
     return X_interp
 
 
-####################### INITIALIZE SOME VARIABLES #############################
+## ##################### INITIALIZE SOME VARIABLES #############################
 save_data = False
 save_plot = True
 load_data = False
-cell_type = 'Purkinje cells'
-# cell_type = 'Mossy Fibers'
+# cell_type = 'Purkinje cells'
+cell_type = 'Mossy Fibers'
 
 
-################################ LOAD DATA ####################################
+## ############################## LOAD DATA ####################################
 # Load neural data
 neural_data_path = r'Y:\data\2022\BATCH5\processing\VIV_23058\S10\locopixels'
 if cell_type == 'Purkinje Cells':
@@ -53,6 +53,9 @@ firing_rate = pd.read_csv(os.path.join(neural_data_path, 'sessionwise_firing_rat
 
 # Load behavioral data and extract event onset and offset
 behav_data_path = r'C:\Users\User\Desktop\behavior_analysis\behavioral_manifold\behavioral_manifold.csv'
+if os.getlogin() == 'diogo':
+    behav_data_path = r'W:\Processed data\Behavioral manifold\behavioral_manifold.csv'
+
 behavior = pd.read_csv(behav_data_path)
 on = behavior.loc[behavior['CycleOn'], 'sessionwise_time'].values
 off = behavior.loc[behavior['CycleOff'], 'sessionwise_time'].values
