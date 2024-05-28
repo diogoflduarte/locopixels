@@ -9,6 +9,7 @@ import cmcrameri
 from matplotlib.collections import LineCollection
 import scipy.stats
 from tqdm import tqdm
+from matplotlib.colors import LinearSegmentedColormap
 
 
 def multiLinePlot(data, colors, linewidth=1, alpha=0.5, x=None):
@@ -359,3 +360,99 @@ def plot3D(df, axis1='PC1', axis2='PC2', axis3='PC3', colorby='phase', colormap=
     plt.show()
 
     return fig, ax
+def plot3Dlines(df, axis1='PC1', axis2='PC2', axis3='PC3', colorby='phase', colormap=cmocean.cm.phase):
+    # todo: complete this function
+    ax = []
+    MSIZE = 0.5
+    fig = plt.figure(figsize=(12, 12))
+    gs = plt.matplotlib.gridspec.GridSpec(3, 2, width_ratios=[2, 1])
+    ax.append(fig.add_subplot(gs[:, 0], projection='3d'))
+    ax[0].scatter(df[axis1], df[axis2], df[axis3], c=df['phase'], cmap=colormap,
+                  s=MSIZE, rasterized=True)
+    ax[0].set_xlabel(axis1)
+    ax[0].set_ylabel(axis2)
+    ax[0].set_zlabel(axis3)
+    ax[0].set_facecolor((1, 1, 1, 0))
+    ax[0].grid(False)
+
+    ax.append(fig.add_subplot(gs[0, 1]))
+    sc = sns.lineplot(data=df, x=axis1, y=axis2,
+                         hue='phase', palette=colormap, estimator=None, s=MSIZE, ax=ax[1], rasterized=True, sort=False)
+    sns.lineplot(data=behav_small[behav_small.FR_Sw_Stride == strides[5]], x='PC1', y='PC2', estimator=None, sort=False)
+    elev = 130
+    azim = -76
+    ax[0].view_init(elev, azim)
+
+    ax.append(fig.add_subplot(gs[1, 1]))
+    sns.scatterplot(data=df, x=axis1, y=axis3,
+                    hue='phase', palette=colormap, estimator=None, s=MSIZE, ax=ax[2], rasterized=True)
+
+    ax.append(fig.add_subplot(gs[2, 1]))
+    sns.scatterplot(data=df, x=axis2, y=axis3,
+                    hue='phase', palette=colormap, estimator=None, s=MSIZE, ax=ax[3], rasterized=True)
+
+    for ii in np.arange(1, len(ax)):
+        ax[ii].legend_.remove()
+        # ax[ii].set_xlim((-80, 80))
+        # ax[ii].set_ylim((-80, 80))
+        ax[ii].set_aspect('equal', adjustable='box')
+
+    # Adjust layout
+    plt.tight_layout()
+    plt.show()
+
+    return fig, ax
+
+def create_colormap(rgb_color):
+    colors = [(0, 0, 0), rgb_color]  # From white to the specified color
+    n_bins = 100  # Discretizes the interpolation into 100 steps
+    cmap_name = 'custom_cmap'
+    return LinearSegmentedColormap.from_list(cmap_name, colors, N=n_bins)
+
+def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=sns.cm.crest_r, lw=1):
+    """
+    Plots PC1 vs PC2 as lines with color coding by the values of a specified column.
+
+    Parameters:
+    - df: pandas DataFrame containing the data
+    - x: name of the column for PC1 values
+    - y: name of the column for PC2 values
+    - colorby: name of the column for color coding
+    - rgb_color: a tuple of the RGB color to use for the colormap
+    """
+    # Create a colormap from black to the specified RGB color
+    # colors = [(0, 0, 0), rgb_color]  # From black to the specified color
+    # n_bins = 100  # Discretizes the interpolation into 100 steps
+    # cmap_name = 'custom_cmap'
+    # cmap = LinearSegmentedColormap.from_list(cmap_name, colors, N=n_bins)
+
+    # Extracting the relevant data
+    pc1 = df[x].values
+    pc2 = df[y].values
+    var1 = df[colorby].values
+
+    # Normalize the color column for coloring
+    norm = plt.Normalize(var1.min(), var1.max())
+
+    # Create line segments
+    points = np.array([pc1, pc2]).T.reshape(-1, 1, 2)
+    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+    # Create a LineCollection
+    lc = LineCollection(segments, cmap=cmap, norm=norm)
+    lc.set_array(var1)
+    lc.set_linewidth(lw)
+
+    # Plotting
+    plt.figure(figsize=(10, 6))
+    plt.gca().add_collection(lc)
+    plt.xlim(pc1.min(), pc1.max())
+    plt.ylim(pc2.min(), pc2.max())
+
+    # Create a colorbar
+    cbar = plt.colorbar(lc)
+    # cbar.set_label(colorby)
+
+    plt.xlabel(x)
+    plt.ylabel(y)
+    plt.show()
