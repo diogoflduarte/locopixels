@@ -10,7 +10,9 @@ from matplotlib.collections import LineCollection
 import scipy.stats
 from tqdm import tqdm
 from matplotlib.colors import LinearSegmentedColormap
-
+import pandas as pd
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 def multiLinePlot(data, colors, linewidth=1, alpha=0.5, x=None):
     plt.figure()
@@ -434,20 +436,34 @@ def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=sns.cm.crest_r, lw=
     # Normalize the color column for coloring
     norm = plt.Normalize(var1.min(), var1.max())
 
-    # Create line segments
-    points = np.array([pc1, pc2]).T.reshape(-1, 1, 2)
-    segments = np.concatenate([points[:-1], points[1:]], axis=1)
+    plt.figure()
+    plt.ion()
 
-    # Create a LineCollection
-    lc = LineCollection(segments, cmap=cmap, norm=norm)
-    lc.set_array(var1)
-    lc.set_linewidth(lw)
+    if trials is None:
+        df['trials'] = 0
+        trials = 'trials'
+    print( np.unique(df[trials]) )
+    for tt, trial in enumerate(np.unique(df[trials])):
+        this_trial_idx = df[trials]==trial
+        pc1 = df[x][this_trial_idx].values
+        pc2 = df[y][this_trial_idx].values
+        var1 = df[colorby][this_trial_idx].values
+
+        # Create line segments
+        points = np.array([pc1, pc2]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        # Create a LineCollection
+        lc = LineCollection(segments, cmap=cmap, norm=norm)
+        lc.set_array(var1)
+        lc.set_linewidth(lw)
+
+        plt.gca().add_collection(lc)
+        plt.xlim(pc1.min(), pc1.max())
+        plt.ylim(pc2.min(), pc2.max())
 
     # Plotting
-    plt.figure(figsize=(10, 6))
-    plt.gca().add_collection(lc)
-    plt.xlim(pc1.min(), pc1.max())
-    plt.ylim(pc2.min(), pc2.max())
+    # plt.figure(figsize=(10, 6))
 
     # Create a colorbar
     cbar = plt.colorbar(lc)
@@ -455,4 +471,97 @@ def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=sns.cm.crest_r, lw=
 
     plt.xlabel(x)
     plt.ylabel(y)
+    plt.show()
+def multicoloredline_3d(df, x, y, z, colorby, trials=None, cmap=plt.cm.viridis, lw=1):
+    """
+    Plots PC1 vs PC2 vs PC3 as 3D lines with color coding by the values of a specified column.
+
+    Parameters:
+    - df: pandas DataFrame containing the data
+    - x: name of the column for PC1 values
+    - y: name of the column for PC2 values
+    - z: name of the column for PC3 values
+    - colorby: name of the column for color coding
+    - trials: name of the column for trials (optional)
+    - cmap: colormap to use for coloring
+    - lw: line width
+    """
+    # Extracting the relevant data
+    pc1     = df[x].values
+    pc2     = df[y].values
+    pc3     = df[z].values
+    var1    = df[colorby].values
+
+    # Normalize the color column for coloring
+    norm = plt.Normalize(var1.min(), var1.max())
+
+    if trials is None:
+        df['trials'] = 0
+        trials = 'trials'
+    unique_trials = np.unique(df[trials])
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    for trial in unique_trials:
+        this_trial_idx = df[trials] == trial
+        pc1_trial = df[x][this_trial_idx].values
+        pc2_trial = df[y][this_trial_idx].values
+        pc3_trial = df[z][this_trial_idx].values
+        var1_trial = df[colorby][this_trial_idx].values
+
+        # Create line segments
+        points = np.array([pc1_trial, pc2_trial, pc3_trial]).T.reshape(-1, 1, 3)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        # Create a Line3DCollection
+        lc = Line3DCollection(segments, cmap=cmap, norm=norm)
+        lc.set_array(var1_trial)
+        lc.set_linewidth(lw)
+
+        ax.add_collection3d(lc, zs=pc3_trial, zdir='z')
+
+    # Create a colorbar
+    cbar = plt.colorbar(lc, ax=ax, pad=0.1)
+    cbar.set_label(colorby)
+
+    ax.set_xlabel(x)
+    ax.set_ylabel(y)
+    ax.set_zlabel(z)
+    ax.grid(False)
+
+    ax.set_xlim([pc1.min(), pc1.max()])
+    ax.set_ylim([pc2.min(), pc2.max()])
+    ax.set_zlim([pc2.min(), pc2.max()])
+
+    plt.show()
+def plot_coefficients(coefficients, features=None, colors=None, metric='Principal Component'):
+    """
+    Plots barplots for the coefficients of principal components.
+
+    Parameters:
+    - coefficients: 2D numpy array of shape (3, 12) with coefficients
+    - features: list of feature names
+    - paw_colors: list of colors for each paw
+    """
+    num_pcs = coefficients.shape[0]
+    num_features = coefficients.shape[1]
+
+    if colors is None:
+        colors = np.repeat(np.array(CareyConstants.paw_colors_sns), 3, axis=0)
+    if features is None:
+        features = [f"{paw}{axis}" for paw in CareyConstants.paw_labels for axis in ['x', 'y', 'z']]
+
+    fig, axes = plt.subplots(num_pcs, 1 , sharex=True)
+    for i, ax in enumerate(axes):
+        coeff = coefficients[i,:]
+        ax.bar(features, coeff, color=colors)
+        ax.set_title(f'{metric} {i + 1}')
+        ax.set_ylabel('Coefficient Value')
+        if i == num_pcs - 1:
+            ax.set_xticklabels(features, rotation=45)
+        else:
+            ax.set_xticklabels([])
+
+    plt.tight_layout()
     plt.show()

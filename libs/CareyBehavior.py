@@ -8,6 +8,7 @@ from CareyConstants import CareyConstants
 import scipy.signal
 import SwSt_Det_SlopeThres
 import cupy
+import scipy.linalg
 
 def plot_tracks_from_file(file_from_DLC, coord='x', fps=430, filter=None, filtwidth=3):
 
@@ -114,7 +115,7 @@ def get_stride_phase_from_events(FR_SwOn, FR_StOn, usegpu=True):
                 phase_inflexion[start:off_index]        = np.linspace(0, 0.5, off_index - start, endpoint=False)
                 phase_inflexion[off_index:next_start]   = np.linspace(0.5, 1, next_start - off_index, endpoint=False)
             # Mark the stride index in the stride_indices array
-            stride_indices[start:off_index] = stride_count
+            stride_indices[start:next_start] = stride_count
             stride_count += 1
 
     if usegpu:
@@ -122,4 +123,29 @@ def get_stride_phase_from_events(FR_SwOn, FR_StOn, usegpu=True):
         phase_inflexion     = phase_inflexion.get()
 
     return phase_continuous, phase_inflexion, stride_indices
+def anchored_relative_dist(A, B, anchor=0):
+    '''
+    computes the procrustes distance with alignment around one anchor point instead of mean
+    :param A:
+    :param B:
+    :param anchor: 0 index by default
+    :return:
+    '''
 
+    A -= A[0]
+    B -= B[0]
+
+    normA = np.linalg.norm(A)
+    normB = np.linalg.norm(B)
+
+    A /= normA
+    B /= normA
+
+    u, w, vt = scipy.linalg.svd(B.T.dot(A).T)
+    R = u.dot(vt)
+    scale = w.sum()
+
+    B = np.dot(B, R.T) * scale
+    disparity = np.sum((np.square(A - B)))
+
+    return B, dist

@@ -496,3 +496,28 @@ def get_stride_indices_from_phase(signal, threshold=0.001, min_stride_duration=5
     for ii in tqdm(range(minpeaks.shape[0]), disable = not verbose):
         stride_indices[minpeaks[ii]:maxpeaks[ii]] = ii + 1
     return  stride_indices
+
+class phase():
+    def subtract(a, b):
+        a = phase.phase_to_radians(a)
+        b = phase.phase_to_radians(b)
+        c = (a-b) % (2*np.pi)-np.pi
+        c = phase.radians_to_phase(c)
+        return c
+    def add(a, b):
+        a = phase.phase_to_radians(a)
+        b = phase.phase_to_radians(b)
+        c = (a+b) % (2*np.pi)-np.pi
+        c = phase.radians_to_phase(c)
+        return c
+    def phase_to_radians(a):
+        '''
+        if a is given between 0 and 1, return between  0 and 2pi
+        '''
+        return a*2*np.pi
+    def radians_to_phase(a):
+        return a/(2*np.pi)
+    def rad2deg(a):
+        return math.degrees(a)
+    def deg2rad(a):
+        return math.radians(a)
