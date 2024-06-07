@@ -14,7 +14,7 @@ import pandas as pd
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 import dash
-from dash import dcc, html, Input, Output
+from dash import dcc, html, Input, Output, ctx, callback
 import plotly.express as px
 import pandas as pd
 
@@ -593,39 +593,37 @@ def twinplots():
         ], style={'width': '48%', 'display': 'inline-block'})
     ])
 
-    fig_left  = px.scatter(df, x='x1', y='y1', size='highlight')
-    fig_right = px.scatter(df, x='x2', y='y2', size='highlight')
+    fig_left  = px.scatter(df, x='x1', y='y1', size='highlight', size_max=20)
+    fig_right = px.scatter(df, x='x2', y='y2', size='highlight', size_max=20)
 
     @app.callback(
         Output('scatter-plot-left', 'figure'),
         Output('scatter-plot-right', 'figure'),
         Input('scatter-plot-left', 'clickData'),
-        Input('scatter-plot-right', 'clickData')
+        Input('scatter-plot-right', 'clickData'),
     )
     def update_plots(clickDataLeft, clickDataRight):
-        selected_index = None
-        if clickDataLeft is not None:
+
+        plot_clicked = ctx.triggered_id
+        if plot_clicked is None:
+            return fig_left, fig_right
+
+        if plot_clicked == 'scatter-plot-left':
+            clicked = 'L'
             selected_index = clickDataLeft['points'][0]['pointIndex']
-        elif clickDataRight is not None:
+        else:
             selected_index = clickDataRight['points'][0]['pointIndex']
-        print(selected_index)
+            clicked = 'R'
+        print(clicked + ' ' + str(selected_index))
 
-        # fig_left = px.scatter(df, x='x1', y='y1')
-        # fig_right = px.scatter(df, x='x2', y='y2')
+        # if selected_index is not None:
+        highlight_array[:] = DEF_SIZE
+        highlight_array[selected_index] = 2
+        fig_left.data[0].marker.size  = highlight_array
+        fig_right.data[0].marker.size = highlight_array
 
-        if selected_index is not None:
-            # df['highlight'][:] = DEF_SIZE
-            # df['highlight'][selected_index] = 2
-            # fig_left.data[0].marker.size  = df['highlight'].values
-            # fig_right.data[0].marker.size = df['highlight'].values
-            highlight_array[:] = DEF_SIZE
-            highlight_array[selected_index] = 2
-            fig_left.data[0].marker.size  = highlight_array
-            fig_right.data[0].marker.size = highlight_array
-            # fig_left.update_traces()
-            # fig_right.update_traces()
-            # fig_left.add_trace(px.scatter(df.iloc[[selected_index]], x='x1', y='y1').data[0])
-            # fig_right.add_trace(px.scatter(df.iloc[[selected_index]], x='x2', y='y2').data[0])
+        clickDataLeft = None
+        clickDataRight = None
 
         return fig_left, fig_right
 
