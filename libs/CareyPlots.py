@@ -13,6 +13,10 @@ from matplotlib.colors import LinearSegmentedColormap
 import pandas as pd
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
+import dash
+from dash import dcc, html, Input, Output
+import plotly.express as px
+import pandas as pd
 
 def multiLinePlot(data, colors, linewidth=1, alpha=0.5, x=None):
     plt.figure()
@@ -565,3 +569,66 @@ def plot_coefficients(coefficients, features=None, colors=None, metric='Principa
 
     plt.tight_layout()
     plt.show()
+def twinplots():
+    DEF_SIZE = 0.1
+    highlight_array = np.ones((5))*DEF_SIZE
+    # Sample DataFrame
+    df = pd.DataFrame({
+        'x1': [1, 2, 3, 4, 5],
+        'y1': [10, 11, 12, 13, 14],
+        'x2': [1, 2, 3, 4, 5],
+        'y2': [14, 13, 12, 11, 10],
+        'highlight': highlight_array
+    })
+
+    app = dash.Dash(__name__)
+
+    app.layout = html.Div([
+        html.Div([
+            dcc.Graph(id='scatter-plot-left')
+        ], style={'width': '48%', 'display': 'inline-block'}),
+
+        html.Div([
+            dcc.Graph(id='scatter-plot-right')
+        ], style={'width': '48%', 'display': 'inline-block'})
+    ])
+
+    fig_left  = px.scatter(df, x='x1', y='y1', size='highlight')
+    fig_right = px.scatter(df, x='x2', y='y2', size='highlight')
+
+    @app.callback(
+        Output('scatter-plot-left', 'figure'),
+        Output('scatter-plot-right', 'figure'),
+        Input('scatter-plot-left', 'clickData'),
+        Input('scatter-plot-right', 'clickData')
+    )
+    def update_plots(clickDataLeft, clickDataRight):
+        selected_index = None
+        if clickDataLeft is not None:
+            selected_index = clickDataLeft['points'][0]['pointIndex']
+        elif clickDataRight is not None:
+            selected_index = clickDataRight['points'][0]['pointIndex']
+        print(selected_index)
+
+        # fig_left = px.scatter(df, x='x1', y='y1')
+        # fig_right = px.scatter(df, x='x2', y='y2')
+
+        if selected_index is not None:
+            # df['highlight'][:] = DEF_SIZE
+            # df['highlight'][selected_index] = 2
+            # fig_left.data[0].marker.size  = df['highlight'].values
+            # fig_right.data[0].marker.size = df['highlight'].values
+            highlight_array[:] = DEF_SIZE
+            highlight_array[selected_index] = 2
+            fig_left.data[0].marker.size  = highlight_array
+            fig_right.data[0].marker.size = highlight_array
+            # fig_left.update_traces()
+            # fig_right.update_traces()
+            # fig_left.add_trace(px.scatter(df.iloc[[selected_index]], x='x1', y='y1').data[0])
+            # fig_right.add_trace(px.scatter(df.iloc[[selected_index]], x='x2', y='y2').data[0])
+
+        return fig_left, fig_right
+
+    app.run_server(debug=True)
+
+    return app
