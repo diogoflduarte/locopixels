@@ -630,19 +630,9 @@ def append_opacity_to_rgba(static_rgb, opacities):
     rgba_colors = [f'{rgb}{a:.1f})' for rgb, a in zip(static_rgb, opacities)]
 
     return rgba_colors
-def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZE=1, POP_SIZE=10, opacity=1,
-              low_opacity=0.6, colormap=cmocean.cm.phase):
+def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZE=1, POP_SIZE=10, colormap='phase', linewidth=0.1, opacity=0.5):
     highlight_array = np.ones(len(df)) * DEF_SIZE
     highlight_array[0] = POP_SIZE
-
-    # Add an opacity column to the DataFrame
-    # df['marker_opacity'] = low_opacity
-    # df.loc[df.index[0], 'marker_opacity'] = opacity
-    opacities = np.ones(len(df))*low_opacity
-    opacities[0] = opacity
-
-    static_rbg = map_values_to_colors_rgbstring(df[colorby].values, colormap=colormap)
-    rgba_colors = append_opacity_to_rgba(static_rbg, opacities)
 
     app = dash.Dash(__name__)
 
@@ -656,11 +646,11 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZ
         ], style={'width': '48%', 'display': 'inline-block'})
     ])
 
-    fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color=colorby, size_max=POP_SIZE)
-    fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, color=colorby, size_max=POP_SIZE)
+    fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale=colormap) # otherwise 'phase'
+    fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale=colormap)
 
-    fig_left.update_traces( marker=dict(size=highlight_array, color=rgba_colors), line=dict(width=0))
-    fig_right.update_traces(marker=dict(size=highlight_array, color=rgba_colors), line=dict(width=0))
+    fig_left.update_traces( marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
+    fig_right.update_traces(marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
 
     fig_left.update_layout(margin=dict(l=20, r=20, t=20, b=20))
     fig_right.update_layout(margin=dict(l=20, r=20, t=20, b=20))
@@ -674,7 +664,7 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZ
         State('scatter-plot-right', 'relayoutData')
     )
     def update_plots(clickDataLeft, clickDataRight, relayoutDataLeft, relayoutDataRight):
-        nonlocal highlight_array, opacities
+        nonlocal highlight_array
 
         plot_clicked = ctx.triggered_id
         if plot_clicked is None:
@@ -685,21 +675,16 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZ
 
         if plot_clicked == 'scatter-plot-left':
             selected_index = clickDataLeft['points'][0]['pointNumber']
-            rgba_colors = append_opacity_to_rgba(static_rbg, opacities)
         else:
             selected_index = clickDataRight['points'][0]['pointNumber']
-            rgba_colors = append_opacity_to_rgba(static_rbg, opacities)
 
         selected_value = df[pop].iloc[selected_index]
         pop_indices = np.where(df[pop].values == selected_value)
         highlight_array[:] = DEF_SIZE
         highlight_array[pop_indices] = POP_SIZE
 
-        opacities[:] = low_opacity
-        opacities[pop_indices] = opacity
-
-        fig_left.update_traces(marker=dict(size=highlight_array, color=rgba_colors), line=dict(width=0))
-        fig_right.update_traces(marker=dict(size=highlight_array, color=rgba_colors), line=dict(width=0))
+        fig_left.update_traces(marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
+        fig_right.update_traces(marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
 
         if camera_left:
             fig_left.update_layout(scene_camera=camera_left)
