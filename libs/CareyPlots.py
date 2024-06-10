@@ -14,7 +14,7 @@ import pandas as pd
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 import dash
-from dash import dcc, html, Input, Output, ctx, callback
+from dash import dcc, html, Input, Output, ctx, callback, State
 import plotly.express as px
 import pandas as pd
 
@@ -569,61 +569,66 @@ def plot_coefficients(coefficients, features=None, colors=None, metric='Principa
 
     plt.tight_layout()
     plt.show()
-def twinplots():
-    DEF_SIZE = 0.1
-    highlight_array = np.ones((5))*DEF_SIZE
-    # Sample DataFrame
-    df = pd.DataFrame({
-        'x1': [1, 2, 3, 4, 5],
-        'y1': [10, 11, 12, 13, 14],
-        'x2': [1, 2, 3, 4, 5],
-        'y2': [14, 13, 12, 11, 10],
-        'highlight': highlight_array
-    })
+def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZE = 1, POP_SIZE = 10, opacity=0.7):
+    DEF_SIZE = DEF_SIZE
+    POP_SIZE = POP_SIZE
+    highlight_array = np.ones(len(df))*DEF_SIZE
+    highlight_array[0] = POP_SIZE
 
     app = dash.Dash(__name__)
 
     app.layout = html.Div([
         html.Div([
             dcc.Graph(id='scatter-plot-left')
-        ], style={'width': '48%', 'display': 'inline-block'}),
+        ], style={'width': '48%', 'display': 'inline-block'}), # 48%
 
         html.Div([
             dcc.Graph(id='scatter-plot-right')
         ], style={'width': '48%', 'display': 'inline-block'})
     ])
 
-    fig_left  = px.scatter(df, x='x1', y='y1', size='highlight', size_max=20)
-    fig_right = px.scatter(df, x='x2', y='y2', size='highlight', size_max=20)
+    fig_left  = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale='phase')
+    fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale='phase')
+    fig_left.update_traces(marker=dict(opacity=opacity,  line=dict(width=0, color='white')))
+    fig_right.update_traces(marker=dict(opacity=opacity, line=dict(width=0, color='white')))
+    fig_left.update_layout(margin=dict(l=20, r=20, t=20, b=20))
+    fig_right.update_layout(margin=dict(l=20, r=20, t=20, b=20))
 
     @app.callback(
         Output('scatter-plot-left', 'figure'),
         Output('scatter-plot-right', 'figure'),
         Input('scatter-plot-left', 'clickData'),
         Input('scatter-plot-right', 'clickData'),
+        State('scatter-plot-left', 'relayoutData'),
+        State('scatter-plot-right', 'relayoutData')
     )
-    def update_plots(clickDataLeft, clickDataRight):
-
+    def update_plots(clickDataLeft, clickDataRight, relayoutDataLeft, relayoutDataRight):
+        nonlocal highlight_array
         plot_clicked = ctx.triggered_id
         if plot_clicked is None:
             return fig_left, fig_right
+        #
+        # camera_left = fig_left.layout.scene.camera
+        # camera_right = fig_right.layout.scene.camera
+
+        camera_left = relayoutDataLeft.get('scene.camera') if relayoutDataLeft else None
+        camera_right = relayoutDataRight.get('scene.camera') if relayoutDataRight else None
 
         if plot_clicked == 'scatter-plot-left':
             clicked = 'L'
-            selected_index = clickDataLeft['points'][0]['pointIndex']
+            selected_index = clickDataLeft['points'][0]['pointNumber']
         else:
-            selected_index = clickDataRight['points'][0]['pointIndex']
+            selected_index = clickDataRight['points'][0]['pointNumber']
             clicked = 'R'
         print(clicked + ' ' + str(selected_index))
 
-        # if selected_index is not None:
         highlight_array[:] = DEF_SIZE
-        highlight_array[selected_index] = 2
-        fig_left.data[0].marker.size  = highlight_array
-        fig_right.data[0].marker.size = highlight_array
+        highlight_array[selected_index] = POP_SIZE
+        fig_left.update_traces(marker=dict(size=highlight_array))
+        fig_right.update_traces(marker=dict(size=highlight_array))
 
-        clickDataLeft = None
-        clickDataRight = None
+        fig_left.update_layout(scene_camera=camera_left)
+        fig_right.update_layout(scene_camera=camera_right)
 
         return fig_left, fig_right
 
