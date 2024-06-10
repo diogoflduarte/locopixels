@@ -15,8 +15,13 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 import dash
 from dash import dcc, html, Input, Output, ctx, callback, State
+import plotly
 import plotly.express as px
 import pandas as pd
+from pandas.core.common import SettingWithCopyWarning
+import warnings
+warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def multiLinePlot(data, colors, linewidth=1, alpha=0.5, x=None):
     plt.figure()
@@ -569,28 +574,94 @@ def plot_coefficients(coefficients, features=None, colors=None, metric='Principa
 
     plt.tight_layout()
     plt.show()
-def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZE = 1, POP_SIZE = 10, opacity=0.7):
-    DEF_SIZE = DEF_SIZE
-    POP_SIZE = POP_SIZE
-    highlight_array = np.ones(len(df))*DEF_SIZE
+def rgb_and_opacity_to_rgba(rgb, opacities):
+    rgb = np.array(rgb)
+    opacities = np.array(opacities)
+
+    if rgb.shape[0] != opacities.shape[0]:
+        raise ValueError("The length of the RGB array must match the length of the opacity array.")
+
+    if not np.all((0 <= opacities) & (opacities <= 1)):
+        raise ValueError("All opacity values must be between 0 and 1.")
+
+    # rgba_colors = [f'rgba({r}, {g}, {b}, {a})' for r, g, b, a in zip(rgb[:, 0], rgb[:, 1], rgb[:, 2], opacities)]
+    rgba_colors = [f'rgba({r}, {g}, {b}, {a})' for r, g, b, a in zip(rgb[:, 0], rgb[:, 1], rgb[:, 2], opacities)]
+    return rgba_colors
+def map_values_to_colors(values, colormap=cmocean.cm.phase):
+    # Get the colormap from matplotlib
+    cmap = plt.get_cmap(colormap)
+
+    # Normalize the values to be between 0 and 1
+    norm = plt.Normalize(vmin=min(values), vmax=max(values))
+    normalized_values = norm(values)
+
+    # Map the normalized values to the colormap
+    colors = cmap(normalized_values)[:, :3]  # Extract RGB values
+
+    # Convert colors to integer RGB values (0-255)
+    rgb_colors = (colors * 255).astype(int)
+
+    return rgb_colors
+def map_values_to_colors_rgbstring(values, colormap=cmocean.cm.phase):
+    # Get the colormap from matplotlib
+    cmap = plt.get_cmap(colormap)
+
+    # Normalize the values to be between 0 and 1
+    norm = plt.Normalize(vmin=min(values), vmax=max(values))
+    normalized_values = norm(values)
+
+    # Map the normalized values to the colormap
+    colors = cmap(normalized_values)[:, :3]  # Extract RGB values
+
+    # Convert colors to integer RGB values (0-255)
+    rgb_colors = (colors * 255).astype(int)
+
+    # Create the static RGB part of the RGBA string
+    static_rgb = [f'rgba({r},{g},{b},' for r, g, b in rgb_colors]
+
+    return static_rgb
+def append_opacity_to_rgba(static_rgb, opacities):
+    if len(static_rgb) != len(opacities):
+        raise ValueError("The length of the static RGB array must match the length of the opacity array.")
+
+    if not all(0 <= a <= 1 for a in opacities):
+        raise ValueError("All opacity values must be between 0 and 1.")
+
+    rgba_colors = [f'{rgb}{a:.1f})' for rgb, a in zip(static_rgb, opacities)]
+
+    return rgba_colors
+def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZE=1, POP_SIZE=10, opacity=1,
+              low_opacity=0.6, colormap=cmocean.cm.phase):
+    highlight_array = np.ones(len(df)) * DEF_SIZE
     highlight_array[0] = POP_SIZE
+
+    # Add an opacity column to the DataFrame
+    # df['marker_opacity'] = low_opacity
+    # df.loc[df.index[0], 'marker_opacity'] = opacity
+    opacities = np.ones(len(df))*low_opacity
+    opacities[0] = opacity
+
+    static_rbg = map_values_to_colors_rgbstring(df[colorby].values, colormap=colormap)
+    rgba_colors = append_opacity_to_rgba(static_rbg, opacities)
 
     app = dash.Dash(__name__)
 
     app.layout = html.Div([
         html.Div([
             dcc.Graph(id='scatter-plot-left')
-        ], style={'width': '48%', 'display': 'inline-block'}), # 48%
+        ], style={'width': '48%', 'display': 'inline-block'}),
 
         html.Div([
             dcc.Graph(id='scatter-plot-right')
         ], style={'width': '48%', 'display': 'inline-block'})
     ])
 
-    fig_left  = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale='phase')
-    fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale='phase')
-    fig_left.update_traces(marker=dict(opacity=opacity,  line=dict(width=0, color='white')))
-    fig_right.update_traces(marker=dict(opacity=opacity, line=dict(width=0, color='white')))
+    fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color=colorby, size_max=POP_SIZE)
+    fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, color=colorby, size_max=POP_SIZE)
+
+    fig_left.update_traces( marker=dict(size=highlight_array, color=rgba_colors), line=dict(width=0))
+    fig_right.update_traces(marker=dict(size=highlight_array, color=rgba_colors), line=dict(width=0))
+
     fig_left.update_layout(margin=dict(l=20, r=20, t=20, b=20))
     fig_right.update_layout(margin=dict(l=20, r=20, t=20, b=20))
 
@@ -603,32 +674,37 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZ
         State('scatter-plot-right', 'relayoutData')
     )
     def update_plots(clickDataLeft, clickDataRight, relayoutDataLeft, relayoutDataRight):
-        nonlocal highlight_array
+        nonlocal highlight_array, opacities
+
         plot_clicked = ctx.triggered_id
         if plot_clicked is None:
             return fig_left, fig_right
-        #
-        # camera_left = fig_left.layout.scene.camera
-        # camera_right = fig_right.layout.scene.camera
 
         camera_left = relayoutDataLeft.get('scene.camera') if relayoutDataLeft else None
         camera_right = relayoutDataRight.get('scene.camera') if relayoutDataRight else None
 
         if plot_clicked == 'scatter-plot-left':
-            clicked = 'L'
             selected_index = clickDataLeft['points'][0]['pointNumber']
+            rgba_colors = append_opacity_to_rgba(static_rbg, opacities)
         else:
             selected_index = clickDataRight['points'][0]['pointNumber']
-            clicked = 'R'
-        print(clicked + ' ' + str(selected_index))
+            rgba_colors = append_opacity_to_rgba(static_rbg, opacities)
 
+        selected_value = df[pop].iloc[selected_index]
+        pop_indices = np.where(df[pop].values == selected_value)
         highlight_array[:] = DEF_SIZE
-        highlight_array[selected_index] = POP_SIZE
-        fig_left.update_traces(marker=dict(size=highlight_array))
-        fig_right.update_traces(marker=dict(size=highlight_array))
+        highlight_array[pop_indices] = POP_SIZE
 
-        fig_left.update_layout(scene_camera=camera_left)
-        fig_right.update_layout(scene_camera=camera_right)
+        opacities[:] = low_opacity
+        opacities[pop_indices] = opacity
+
+        fig_left.update_traces(marker=dict(size=highlight_array, color=rgba_colors), line=dict(width=0))
+        fig_right.update_traces(marker=dict(size=highlight_array, color=rgba_colors), line=dict(width=0))
+
+        if camera_left:
+            fig_left.update_layout(scene_camera=camera_left)
+        if camera_right:
+            fig_right.update_layout(scene_camera=camera_right)
 
         return fig_left, fig_right
 

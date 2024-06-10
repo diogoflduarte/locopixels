@@ -81,9 +81,9 @@ for f in feat:
     behav[feat] = behav[feat].interpolate()
 behav_pcs = behav_pca.fit_transform(CareyUtils.zscore(behav[['FRx', 'FRy', 'FRz', 'HRx', 'HRy', 'HRz',
                                            'FLx', 'FLy', 'FLz', 'HLx', 'HLy', 'HLz']].values))
-behav['PC1'] = behav_pcs[:,0]
-behav['PC2'] = behav_pcs[:,1]
-behav['PC3'] = behav_pcs[:,2]
+behav['PC1'] = behav_pcs[:, 0]
+behav['PC2'] = behav_pcs[:, 1]
+behav['PC3'] = behav_pcs[:, 2]
 
 behav_small_idx = np.logical_and(behav['FR_Sw_Stride'] > 9000, behav['FR_Sw_Stride'] < 10500)
 behav_small = behav[behav_small_idx]
