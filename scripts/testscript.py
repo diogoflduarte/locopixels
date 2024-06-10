@@ -15,5 +15,6 @@ neural_pca = sklearn.decomposition.PCA(n_components=3).fit_transform(df[['317', 
 df[['bPC1', 'bPC2', 'bPC3']] = behav_pca
 df[['nPC1', 'nPC2', 'nPC3']] = neural_pca
 app = CareyPlots.twinplots(df[:5000], 'bPC1', 'bPC2', 'bPC3', 'nPC1', 'nPC2', 'nPC3', colorby='FR_SwPh',
-                                        pop='FR_SwStrides', DEF_SIZE=1, POP_SIZE=20, linewidth=0.1, opacity=0.5)
+                                        pop='FR_SwStrides', DEF_SIZE=1, POP_SIZE=20, linewidth=0.1, opacity=0.5,
+                                        hdatafields=['FR_SwStrides', 'sessionwise_time'])
 
