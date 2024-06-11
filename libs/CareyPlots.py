@@ -5,9 +5,23 @@ from CareyConstants import CareyConstants
 import CareyUtils
 import seaborn as sns
 import cmocean
+import cmcrameri
 from matplotlib.collections import LineCollection
 import scipy.stats
 from tqdm import tqdm
+from matplotlib.colors import LinearSegmentedColormap
+import pandas as pd
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
+import dash
+from dash import dcc, html, Input, Output, ctx, callback, State
+import plotly
+import plotly.express as px
+import pandas as pd
+from pandas.core.common import SettingWithCopyWarning
+import warnings
+warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def multiLinePlot(data, colors, linewidth=1, alpha=0.5, x=None):
     plt.figure()
@@ -296,3 +310,389 @@ def CSalignedSS(ss, cs, binsize=0.01, window=[-0.05, 0.05]):
         data_bunch = np.hstack((data_bunch, this_ss_subset-c))
 
     plt.hist(data_bunch, bin_edges)
+
+def ridgeplot(data, x=None, y=None, by=None, linewidth=1, spacing=1.0, multiplier=1.0, color='k', alpha=None,
+                    visibleframe=False, zscore=False):
+    if isinstance(data, np.ndarray):
+        if data.ndim is not 2:
+            raise ValueError('Dimensions different from 2 not supported')
+        n_xpts, n_lines = data.shape
+
+        if zscore is True:
+            data = CareyUtils.zscore(data)
+
+        data = data*multiplier + np.tile(np.arange(n_lines)*spacing, (n_xpts, 1))
+        if x is None:
+            x = np.arange(n_xpts)
+
+        ax = plt.gca()
+        plt.plot(x, data, color=color, linewidth=linewidth, alpha=alpha);
+        ax.axes.get_yaxis().set_ticks([])
+        ax.axes.get_xaxis().set_visible(visibleframe)
+        ax.axes.get_yaxis().set_visible(visibleframe)
+
+def plot3D(df, axis1='PC1', axis2='PC2', axis3='PC3', colorby='phase', colormap=cmocean.cm.phase):
+    ax = []
+    MSIZE = 0.5
+    fig = plt.figure(figsize=(12, 12))
+    gs = plt.matplotlib.gridspec.GridSpec(3, 2, width_ratios=[2, 1])
+    ax.append(fig.add_subplot(gs[:, 0], projection='3d'))
+    ax[0].scatter(df[axis1], df[axis2], df[axis3], c=df['phase'], cmap=colormap,
+                  s=MSIZE, rasterized=True)
+    ax[0].set_xlabel(axis1)
+    ax[0].set_ylabel(axis2)
+    ax[0].set_zlabel(axis3)
+    ax[0].set_facecolor((1, 1, 1, 0))
+    ax[0].grid(False)
+
+    ax.append(fig.add_subplot(gs[0, 1]))
+    sc = sns.scatterplot(data=df, x=axis1, y=axis2,
+                         hue='phase', palette=colormap, estimator=None, s=MSIZE, ax=ax[1], rasterized=True)
+    elev = 130
+    azim = -76
+    ax[0].view_init(elev, azim)
+
+    ax.append(fig.add_subplot(gs[1, 1]))
+    sns.scatterplot(data=df, x=axis1, y=axis3,
+                    hue='phase', palette=colormap, estimator=None, s=MSIZE, ax=ax[2], rasterized=True)
+
+    ax.append(fig.add_subplot(gs[2, 1]))
+    sns.scatterplot(data=df, x=axis2, y=axis3,
+                    hue='phase', palette=colormap, estimator=None, s=MSIZE, ax=ax[3], rasterized=True)
+
+    for ii in np.arange(1, len(ax)):
+        ax[ii].legend_.remove()
+        # ax[ii].set_xlim((-80, 80))
+        # ax[ii].set_ylim((-80, 80))
+        ax[ii].set_aspect('equal', adjustable='box')
+
+    # Adjust layout
+    plt.tight_layout()
+    plt.show()
+
+    return fig, ax
+def plot3Dlines(df, axis1='PC1', axis2='PC2', axis3='PC3', colorby='phase', colormap=cmocean.cm.phase):
+    # todo: complete this function
+    ax = []
+    MSIZE = 0.5
+    fig = plt.figure(figsize=(12, 12))
+    gs = plt.matplotlib.gridspec.GridSpec(3, 2, width_ratios=[2, 1])
+    ax.append(fig.add_subplot(gs[:, 0], projection='3d'))
+    ax[0].scatter(df[axis1], df[axis2], df[axis3], c=df['phase'], cmap=colormap,
+                  s=MSIZE, rasterized=True)
+    ax[0].set_xlabel(axis1)
+    ax[0].set_ylabel(axis2)
+    ax[0].set_zlabel(axis3)
+    ax[0].set_facecolor((1, 1, 1, 0))
+    ax[0].grid(False)
+
+    ax.append(fig.add_subplot(gs[0, 1]))
+    sc = sns.lineplot(data=df, x=axis1, y=axis2,
+                         hue='phase', palette=colormap, estimator=None, s=MSIZE, ax=ax[1], rasterized=True, sort=False)
+    sns.lineplot(data=behav_small[behav_small.FR_Sw_Stride == strides[5]], x='PC1', y='PC2', estimator=None, sort=False)
+    elev = 130
+    azim = -76
+    ax[0].view_init(elev, azim)
+
+    ax.append(fig.add_subplot(gs[1, 1]))
+    sns.scatterplot(data=df, x=axis1, y=axis3,
+                    hue='phase', palette=colormap, estimator=None, s=MSIZE, ax=ax[2], rasterized=True)
+
+    ax.append(fig.add_subplot(gs[2, 1]))
+    sns.scatterplot(data=df, x=axis2, y=axis3,
+                    hue='phase', palette=colormap, estimator=None, s=MSIZE, ax=ax[3], rasterized=True)
+
+    for ii in np.arange(1, len(ax)):
+        ax[ii].legend_.remove()
+        # ax[ii].set_xlim((-80, 80))
+        # ax[ii].set_ylim((-80, 80))
+        ax[ii].set_aspect('equal', adjustable='box')
+
+    # Adjust layout
+    plt.tight_layout()
+    plt.show()
+
+    return fig, ax
+
+def create_colormap(rgb_color):
+    colors = [(0, 0, 0), rgb_color]  # From white to the specified color
+    n_bins = 100  # Discretizes the interpolation into 100 steps
+    cmap_name = 'custom_cmap'
+    return LinearSegmentedColormap.from_list(cmap_name, colors, N=n_bins)
+
+def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=sns.cm.crest_r, lw=1):
+    """
+    Plots PC1 vs PC2 as lines with color coding by the values of a specified column.
+
+    Parameters:
+    - df: pandas DataFrame containing the data
+    - x: name of the column for PC1 values
+    - y: name of the column for PC2 values
+    - colorby: name of the column for color coding
+    - rgb_color: a tuple of the RGB color to use for the colormap
+    """
+    # Create a colormap from black to the specified RGB color
+    # colors = [(0, 0, 0), rgb_color]  # From black to the specified color
+    # n_bins = 100  # Discretizes the interpolation into 100 steps
+    # cmap_name = 'custom_cmap'
+    # cmap = LinearSegmentedColormap.from_list(cmap_name, colors, N=n_bins)
+
+    # Extracting the relevant data
+    pc1 = df[x].values
+    pc2 = df[y].values
+    var1 = df[colorby].values
+
+    # Normalize the color column for coloring
+    norm = plt.Normalize(var1.min(), var1.max())
+
+    plt.figure()
+    plt.ion()
+
+    if trials is None:
+        df['trials'] = 0
+        trials = 'trials'
+    print( np.unique(df[trials]) )
+    for tt, trial in enumerate(np.unique(df[trials])):
+        this_trial_idx = df[trials]==trial
+        pc1 = df[x][this_trial_idx].values
+        pc2 = df[y][this_trial_idx].values
+        var1 = df[colorby][this_trial_idx].values
+
+        # Create line segments
+        points = np.array([pc1, pc2]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        # Create a LineCollection
+        lc = LineCollection(segments, cmap=cmap, norm=norm)
+        lc.set_array(var1)
+        lc.set_linewidth(lw)
+
+        plt.gca().add_collection(lc)
+        plt.xlim(pc1.min(), pc1.max())
+        plt.ylim(pc2.min(), pc2.max())
+
+    # Plotting
+    # plt.figure(figsize=(10, 6))
+
+    # Create a colorbar
+    cbar = plt.colorbar(lc)
+    # cbar.set_label(colorby)
+
+    plt.xlabel(x)
+    plt.ylabel(y)
+    plt.show()
+def multicoloredline_3d(df, x, y, z, colorby, trials=None, cmap=plt.cm.viridis, lw=1):
+    """
+    Plots PC1 vs PC2 vs PC3 as 3D lines with color coding by the values of a specified column.
+
+    Parameters:
+    - df: pandas DataFrame containing the data
+    - x: name of the column for PC1 values
+    - y: name of the column for PC2 values
+    - z: name of the column for PC3 values
+    - colorby: name of the column for color coding
+    - trials: name of the column for trials (optional)
+    - cmap: colormap to use for coloring
+    - lw: line width
+    """
+    # Extracting the relevant data
+    pc1     = df[x].values
+    pc2     = df[y].values
+    pc3     = df[z].values
+    var1    = df[colorby].values
+
+    # Normalize the color column for coloring
+    norm = plt.Normalize(var1.min(), var1.max())
+
+    if trials is None:
+        df['trials'] = 0
+        trials = 'trials'
+    unique_trials = np.unique(df[trials])
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    for trial in unique_trials:
+        this_trial_idx = df[trials] == trial
+        pc1_trial = df[x][this_trial_idx].values
+        pc2_trial = df[y][this_trial_idx].values
+        pc3_trial = df[z][this_trial_idx].values
+        var1_trial = df[colorby][this_trial_idx].values
+
+        # Create line segments
+        points = np.array([pc1_trial, pc2_trial, pc3_trial]).T.reshape(-1, 1, 3)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        # Create a Line3DCollection
+        lc = Line3DCollection(segments, cmap=cmap, norm=norm)
+        lc.set_array(var1_trial)
+        lc.set_linewidth(lw)
+
+        ax.add_collection3d(lc, zs=pc3_trial, zdir='z')
+
+    # Create a colorbar
+    cbar = plt.colorbar(lc, ax=ax, pad=0.1)
+    cbar.set_label(colorby)
+
+    ax.set_xlabel(x)
+    ax.set_ylabel(y)
+    ax.set_zlabel(z)
+    ax.grid(False)
+
+    ax.set_xlim([pc1.min(), pc1.max()])
+    ax.set_ylim([pc2.min(), pc2.max()])
+    ax.set_zlim([pc2.min(), pc2.max()])
+
+    plt.show()
+def plot_coefficients(coefficients, features=None, colors=None, metric='Principal Component'):
+    """
+    Plots barplots for the coefficients of principal components.
+
+    Parameters:
+    - coefficients: 2D numpy array of shape (3, 12) with coefficients
+    - features: list of feature names
+    - paw_colors: list of colors for each paw
+    """
+    num_pcs = coefficients.shape[0]
+    num_features = coefficients.shape[1]
+
+    if colors is None:
+        colors = np.repeat(np.array(CareyConstants.paw_colors_sns), 3, axis=0)
+    if features is None:
+        features = [f"{paw}{axis}" for paw in CareyConstants.paw_labels for axis in ['x', 'y', 'z']]
+
+    fig, axes = plt.subplots(num_pcs, 1 , sharex=True)
+    for i, ax in enumerate(axes):
+        coeff = coefficients[i,:]
+        ax.bar(features, coeff, color=colors)
+        ax.set_title(f'{metric} {i + 1}')
+        ax.set_ylabel('Coefficient Value')
+        if i == num_pcs - 1:
+            ax.set_xticklabels(features, rotation=45)
+        else:
+            ax.set_xticklabels([])
+
+    plt.tight_layout()
+    plt.show()
+def rgb_and_opacity_to_rgba(rgb, opacities):
+    rgb = np.array(rgb)
+    opacities = np.array(opacities)
+
+    if rgb.shape[0] != opacities.shape[0]:
+        raise ValueError("The length of the RGB array must match the length of the opacity array.")
+
+    if not np.all((0 <= opacities) & (opacities <= 1)):
+        raise ValueError("All opacity values must be between 0 and 1.")
+
+    # rgba_colors = [f'rgba({r}, {g}, {b}, {a})' for r, g, b, a in zip(rgb[:, 0], rgb[:, 1], rgb[:, 2], opacities)]
+    rgba_colors = [f'rgba({r}, {g}, {b}, {a})' for r, g, b, a in zip(rgb[:, 0], rgb[:, 1], rgb[:, 2], opacities)]
+    return rgba_colors
+def map_values_to_colors(values, colormap=cmocean.cm.phase):
+    # Get the colormap from matplotlib
+    cmap = plt.get_cmap(colormap)
+
+    # Normalize the values to be between 0 and 1
+    norm = plt.Normalize(vmin=min(values), vmax=max(values))
+    normalized_values = norm(values)
+
+    # Map the normalized values to the colormap
+    colors = cmap(normalized_values)[:, :3]  # Extract RGB values
+
+    # Convert colors to integer RGB values (0-255)
+    rgb_colors = (colors * 255).astype(int)
+
+    return rgb_colors
+def map_values_to_colors_rgbstring(values, colormap=cmocean.cm.phase):
+    # Get the colormap from matplotlib
+    cmap = plt.get_cmap(colormap)
+
+    # Normalize the values to be between 0 and 1
+    norm = plt.Normalize(vmin=min(values), vmax=max(values))
+    normalized_values = norm(values)
+
+    # Map the normalized values to the colormap
+    colors = cmap(normalized_values)[:, :3]  # Extract RGB values
+
+    # Convert colors to integer RGB values (0-255)
+    rgb_colors = (colors * 255).astype(int)
+
+    # Create the static RGB part of the RGBA string
+    static_rgb = [f'rgba({r},{g},{b},' for r, g, b in rgb_colors]
+
+    return static_rgb
+def append_opacity_to_rgba(static_rgb, opacities):
+    if len(static_rgb) != len(opacities):
+        raise ValueError("The length of the static RGB array must match the length of the opacity array.")
+
+    if not all(0 <= a <= 1 for a in opacities):
+        raise ValueError("All opacity values must be between 0 and 1.")
+
+    rgba_colors = [f'{rgb}{a:.1f})' for rgb, a in zip(static_rgb, opacities)]
+
+    return rgba_colors
+def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZE=1, POP_SIZE=10, colormap='phase', linewidth=0.1, opacity=0.5, hdatafields=None):
+    highlight_array = np.ones(len(df)) * DEF_SIZE
+    highlight_array[0] = POP_SIZE
+
+    app = dash.Dash(__name__)
+
+    app.layout = html.Div([
+        html.Div([
+            dcc.Graph(id='scatter-plot-left')
+        ], style={'width': '48%', 'display': 'inline-block'}),
+
+        html.Div([
+            dcc.Graph(id='scatter-plot-right')
+        ], style={'width': '48%', 'display': 'inline-block'})
+    ])
+
+    fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale=colormap, hover_data=hdatafields) # otherwise 'phase'
+    fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale=colormap)
+
+    fig_left.update_traces( marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
+    fig_right.update_traces(marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
+
+    fig_left.update_layout(margin=dict(l=5, r=5, t=5, b=5))
+    fig_right.update_layout(margin=dict(l=5, r=5, t=5, b=5))
+
+    @app.callback(
+        Output('scatter-plot-left', 'figure'),
+        Output('scatter-plot-right', 'figure'),
+        Input('scatter-plot-left', 'clickData'),
+        Input('scatter-plot-right', 'clickData'),
+        State('scatter-plot-left', 'relayoutData'),
+        State('scatter-plot-right', 'relayoutData')
+    )
+    def update_plots(clickDataLeft, clickDataRight, relayoutDataLeft, relayoutDataRight):
+        nonlocal highlight_array
+
+        plot_clicked = ctx.triggered_id
+        if plot_clicked is None:
+            return fig_left, fig_right
+
+        camera_left = relayoutDataLeft.get('scene.camera') if relayoutDataLeft else None
+        camera_right = relayoutDataRight.get('scene.camera') if relayoutDataRight else None
+
+        if plot_clicked == 'scatter-plot-left':
+            selected_index = clickDataLeft['points'][0]['pointNumber']
+        else:
+            selected_index = clickDataRight['points'][0]['pointNumber']
+
+        selected_value = df[pop].iloc[selected_index]
+        pop_indices = np.where(df[pop].values == selected_value)
+        highlight_array[:] = DEF_SIZE
+        highlight_array[pop_indices] = POP_SIZE
+
+        fig_left.update_traces(marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
+        fig_right.update_traces(marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
+
+        if camera_left:
+            fig_left.update_layout(scene_camera=camera_left)
+        if camera_right:
+            fig_right.update_layout(scene_camera=camera_right)
+
+        return fig_left, fig_right
+
+    app.run_server(debug=True)
+
+    return app

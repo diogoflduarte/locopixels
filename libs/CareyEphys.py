@@ -668,7 +668,8 @@ def compilePopulationActivity_Parallel(spike_times, units, event_times,
             population_activity[:, :, tt] = PA[tt]
 
     return population_activity
-# todo compile from smoothed population activity array or write a one liner on it
+def compileFiringRates(spike_times):
+    pass
 
 def standardizeByAxis(in_matrix, ax=0, method='std'):
     # standardizes values between 0 and 1 (minmax or std) along a preferred axis
