@@ -33,6 +33,10 @@ class CareyConstants:
 
     paw_colors_sns = [sns.color_palette(sns_color_palette)[3], sns.color_palette(sns_color_palette)[6],
                       sns.color_palette(sns_color_palette)[0], sns.color_palette(sns_color_palette)[9]]
+    paw_colors_sns_dict = {'FR': sns.color_palette(sns_color_palette)[3],
+                           'HR': sns.color_palette(sns_color_palette)[6],
+                           'FL': sns.color_palette(sns_color_palette)[0],
+                           'HL': sns.color_palette(sns_color_palette)[9]}
 
     # pc to mm scale
     ## 210.81973994640725 in pixel distance corresponds to 12cm
