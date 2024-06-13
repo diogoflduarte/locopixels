@@ -14,8 +14,7 @@ import pandas as pd
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 import dash
-from dash import dcc, html, Input, Output, ctx, callback, State, Events
-import dash_eventlisteners as dels
+from dash import dcc, html, Input, Output, ctx, callback, State
 import dash_bootstrap_components as dbc
 import dash_player as player
 import plotly
