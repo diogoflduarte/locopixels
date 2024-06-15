@@ -174,6 +174,7 @@ if run_LDS:
     lds.initialize(y_train, verbose=2)
 
 
+
     plt.figure()
     plt.imshow(lds.dynamics.A)
     plt.colorbar()

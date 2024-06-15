@@ -861,3 +861,30 @@ def exploreVideo(video_path):
                         style={'max-width': '100%'}), f'Frame {frame_number + 1}/{total_frames}', frame_number
 
     return app
+def adjust_font_size(ax=plt.gca(), increment=0):
+    """
+    Adjust all font sizes in the current axes by a specified increment.
+
+    Parameters:
+    ax (matplotlib.axes.Axes): The axes to modify.
+    increment (int): The number to add to the current font sizes.
+    """
+    # Get the current font sizes
+    title_size = ax.title.get_size()
+    label_size = ax.xaxis.label.get_size()
+    tick_size = ax.xaxis.get_ticklabels()[
+        0].get_size() if ax.xaxis.get_ticklabels() else 10  # default tick size if no ticks
+    legend = ax.get_legend()
+    legend_size = legend.get_texts()[0].get_size() if legend else 10  # default legend size if no legend
+
+    # Adjust font sizes by the specified increment
+    ax.title.set_size(title_size + increment)
+    ax.xaxis.label.set_size(label_size + increment)
+    ax.yaxis.label.set_size(label_size + increment)
+    for tick in ax.xaxis.get_ticklabels():
+        tick.set_fontsize(tick_size + increment)
+    for tick in ax.yaxis.get_ticklabels():
+        tick.set_fontsize(tick_size + increment)
+    if legend:
+        for text in legend.get_texts():
+            text.set_fontsize(legend_size + increment)

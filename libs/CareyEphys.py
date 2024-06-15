@@ -273,18 +273,6 @@ def estimate_gaussconv_based_FR(spike_times, acquisition_time, fs=CareyConstants
 
     myconv = CareyUtils.gaussian_smoothing(fr_arr, sigma, usegpu=usegpu)
 
-    # kernel = CareyUtils.gaussian(0, sigma, np.round(sigma*10))
-    # kernel = kernel / np.sum(kernel)
-    # in_sig = np.concatenate((np.flip(fr_arr[:kernel.shape[0]]), fr_arr, np.flip(fr_arr[-kernel.shape[0]:])), axis=0)
-    # myconv =        np.convolve(in_sig, kernel)
-    # myconv = myconv[int(np.round((kernel.shape[0]*1.5))):]
-    # myconv = myconv[:fr_arr.shape[0]]
-    # scipy_conv =    scipy.ndimage.gaussian_filter1d(fr_arr[:100000], sigma)
-
-    # plt.plot(scipy_conv), plt.plot(scipy_conv)
-
-    # smooth_fr = scipy.ndimage.gaussian_filter1d(fr_arr, sigma, axis=-1, order=0, output=None,
-    #                                             mode='reflect', cval=0.0, truncate=4.0)
     return myconv
 
 def cleanupConsecutiveSpikes(spike_times_array, delta_t, verbose=0):
@@ -668,9 +656,6 @@ def compilePopulationActivity_Parallel(spike_times, units, event_times,
             population_activity[:, :, tt] = PA[tt]
 
     return population_activity
-def compileFiringRates(spike_times):
-    pass
-
 def standardizeByAxis(in_matrix, ax=0, method='std'):
     # standardizes values between 0 and 1 (minmax or std) along a preferred axis
     # de-mean
@@ -752,20 +737,20 @@ def populationActivity_3D_to_DataFrame(population_activity, units, time_array):
 
     return pop_act
 
-
-
 def generateUnitNames(units_array):
     unit_names = []
     for ii in range(len(units_array)):
         unit_names.append(str('unit %i' % (units_array[ii])))
 
     return unit_names
+
+
+
 def generatePCNames(n_pcs, prefix='PC'):
     pc_names = []
     for ii in range(n_pcs):
         pc_names.append(str('%s %i' % (prefix, ii+1)))
     return pc_names
-
 def PCA_matrix_to_DataFrame(pcamat, time_array):
     total_obs, n_dimensions = pcamat.shape
     n_timepoints = time_array.shape[0]
@@ -844,9 +829,9 @@ def trialwiseScatterPlot_3D(df, x='PC 1', y='PC 2', z='PC 3', hue='', linewidth=
     # plots lines representing trials
     sns.lineplot(df, x='time', y='PC 1', linewidth=0.1, hue='trial', palette='YlOrRd')
 
-
 def trialwise_FeatOverTime():
     pass
+
 
 def compileSessionWise_FiringRates(ksDir, dt, units='good', method='isi_step', gaussdev=0.001):
     '''
@@ -935,14 +920,53 @@ def compileSessionWise_SpikeCounts(ksDir,units='good', binsize=0.02):
 
     return bin_edges, df
 
-def get_sessionwise_firingrate_singleunit(spike_times, time_array):
-    # t_arr = np.arange(0, TOTAL_TIME, 1 / 1000, dtype=float)
-    # padded_spike_train = np.zeros(time_array.shape[0])
-    cupy_spike_train = cupy.zeros(time_array.shape[0])
-    cupy_time_array = cupy.arange(0, TOTAL_TIME, 1 / 1000)
-    cupy_spike_times = cupy.array(spike_times)
-    for spike in tqdm(cupy_spike_times):
-        cupy_spike_train[cupy.argmin(cupy.abs( spike-cupy_time_array ))] = 1
+def npyx_wrapper_sessionwise_firingrates(dp, units):
+    meta = npyx.read_metadata(dp)
+    n_timepoints = int(meta['highpass']['binary_byte_size'] / meta['highpass']['n_channels_binaryfile']/2)
+    time_array = np.linspace(0, meta['recording_length_seconds'], n_timepoints)  # really hoping maxime doesn't fix the parsing bug before I finish the PhD
+    firing_rates = np.array(time_array)
+
+
+
+    for ii, u in enumerate(units):
+        pass
+    # todo: complete
+def get_sessionwise_firingrate_singleunit_binning(spike_indices, time_array, bwidth=10, gaussdev=0.010, fs=CareyConstants.DEF_NPX_FS, binnedoutput=True):
+
+    binary_spike_array = np.zeros(time_array.shape[0], dtype='bool')
+    binary_spike_array[spike_indices] = 1
+
+    num_bins = binary_spike_array.shape[0] // bwidth
+
+    # Trim both arrays to fit into full bins
+    trimmed_bool_array = binary_spike_array[:num_bins * bwidth]
+    trimmed_time_array = time_array[:num_bins * bwidth]
+
+    # Reshape both arrays into bins of width 10
+    binned_bool_array = trimmed_bool_array.reshape((num_bins, bwidth))
+    binned_time_array = trimmed_time_array.reshape((num_bins, bwidth))
+
+    bool_bin_sums = binned_bool_array.sum(axis=1)*fs / bwidth
+    time_bin_means = binned_time_array.mean(axis=1)
+
+    sigma = gaussdev * fs / bwidth
+    myconv = CareyUtils.gaussian_smoothing(bool_bin_sums, sigma, usegpu=True)
+    time = time_bin_means
+
+    if not binnedoutput:
+        myconv = np.interp(time_array, time_bin_means, myconv)
+        time = time_bin_means
+
+    return myconv, time
+def get_sessionwise_firingrate_singleunit(spike_indices, time_array, gaussdev=0.010, fs=CareyConstants.DEF_NPX_FS):
+    sigma = gaussdev * fs
+    binary_spike_array = np.zeros(time_array.shape[0])
+    binary_spike_array[spike_indices] = fs
+
+    myconv = CareyUtils.gaussian_smoothing(binary_spike_array, sigma, usegpu=True)
+
+    return myconv
+
 
 def get_and_save_downsampled_population_firing_rates(dp,
                                                      downsamp_freq=1000,

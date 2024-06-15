@@ -14,6 +14,9 @@ from numba import jit
 import math
 import pandas as pd
 from tqdm import tqdm
+import cProfile
+import pstats
+from io import StringIO
 try:
     import cupy
     import cupyx.scipy.ndimage
@@ -496,6 +499,23 @@ def get_stride_indices_from_phase(signal, threshold=0.001, min_stride_duration=5
     for ii in tqdm(range(minpeaks.shape[0]), disable = not verbose):
         stride_indices[minpeaks[ii]:maxpeaks[ii]] = ii + 1
     return  stride_indices
+
+def profile_function(func, *args, **kwargs):
+    profiler = cProfile.Profile()
+    profiler.enable()
+    result = func(*args, **kwargs)
+    profiler.disable()
+
+    # Print the profiling results
+    stream = StringIO()
+    stats = pstats.Stats(profiler, stream=stream)
+    stats.strip_dirs()
+    stats.sort_stats('cumulative')
+    stats.print_stats()
+    print(stream.getvalue())
+
+    return result
+
 
 class phase():
     def subtract(a, b):
