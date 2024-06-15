@@ -20,6 +20,7 @@ from numba import jit
 import npyx
 try:
     import cupy
+    import cupy as cp
     gpu_avail = True
 except ImportError:
     print('Cupy not installed, not available for gaussian smoothing firing rates in CareyEphys')
@@ -919,18 +920,6 @@ def compileSessionWise_SpikeCounts(ksDir,units='good', binsize=0.02):
         df[('unit' + str(units[ii]))] = these_counts[0]
 
     return bin_edges, df
-
-def npyx_wrapper_sessionwise_firingrates(dp, units):
-    meta = npyx.read_metadata(dp)
-    n_timepoints = int(meta['highpass']['binary_byte_size'] / meta['highpass']['n_channels_binaryfile']/2)
-    time_array = np.linspace(0, meta['recording_length_seconds'], n_timepoints)  # really hoping maxime doesn't fix the parsing bug before I finish the PhD
-    firing_rates = np.array(time_array)
-
-
-
-    for ii, u in enumerate(units):
-        pass
-    # todo: complete
 def get_sessionwise_firingrate_singleunit_binning(spike_indices, time_array, bwidth=10, gaussdev=0.010, fs=CareyConstants.DEF_NPX_FS, binnedoutput=True):
 
     binary_spike_array = np.zeros(time_array.shape[0], dtype='bool')
@@ -958,6 +947,35 @@ def get_sessionwise_firingrate_singleunit_binning(spike_indices, time_array, bwi
         time = time_bin_means
 
     return myconv, time
+def get_sessionwise_firingrate_singleunit_binning_fullgpu(spike_indices, time_array, bwidth=10, gaussdev=0.010, fs=CareyConstants.DEF_NPX_FS, binnedoutput=True):
+
+    time_array = cp.array(time_array)
+    binary_spike_array = cp.zeros(time_array.shape[0], dtype='bool')
+    binary_spike_array[spike_indices] = 1
+
+    num_bins = binary_spike_array.shape[0] // bwidth
+
+    # Trim both arrays to fit into full bins
+    trimmed_bool_array = binary_spike_array[:num_bins * bwidth]
+    trimmed_time_array = time_array[:num_bins * bwidth]
+
+    # Reshape both arrays into bins of width 10
+    binned_bool_array = trimmed_bool_array.reshape((num_bins, bwidth))
+    binned_time_array = trimmed_time_array.reshape((num_bins, bwidth))
+
+    bool_bin_sums = binned_bool_array.sum(axis=1)*fs / bwidth
+    time_bin_means = binned_time_array.mean(axis=1)
+
+    sigma = gaussdev * fs / bwidth
+    myconv = CareyUtils.gaussian_smoothing(bool_bin_sums, sigma, usegpu=True, asgpu=True)
+    time = time_bin_means
+
+    if not binnedoutput:
+        myconv = cp.interp(time_array, time_bin_means, myconv)
+        time = time_bin_means
+
+    return myconv, time
+
 def get_sessionwise_firingrate_singleunit(spike_indices, time_array, gaussdev=0.010, fs=CareyConstants.DEF_NPX_FS):
     sigma = gaussdev * fs
     binary_spike_array = np.zeros(time_array.shape[0])
@@ -996,3 +1014,8 @@ def get_and_save_downsampled_population_firing_rates(dp,
     if save_file_loc is not None:
         df.to_csv(os.path.join(new_proc, 'sessionwise_firing_rates.csv'))
     return df
+def compile_sessionwise_firingrates_npyx(dp, units, binning=True, gpu=True):
+    meta = npyx.read_metadata(dp)
+    n_timepoints = int(meta['highpass']['binary_byte_size'] / meta['highpass']['n_channels_binaryfile'] / 2)
+    time_array = np.linspace(0, meta['recording_length_seconds'],
+                             n_timepoints)  # really hoping maxime doesn't fix the parsing bug before I finish the PhD

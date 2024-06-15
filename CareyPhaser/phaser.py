@@ -1,8 +1,12 @@
 from numpy import *
-from phaser_utils import *
+try:
+  from phaser_utils import *
+except:
+  from CareyPhaser.phaser_utils import *
 from scipy import signal
 import warnings
 import numpy as np
+from tqdm import tqdm
 
 """
 The phaser module provides an implementation of the phase estimation algorithm
@@ -169,7 +173,7 @@ class Phaser( object ):
 
     # evaluable weights based on sample length
     p = 1j * zeros( th.shape )
-    for k in range( th.shape[0] ):
+    for k in tqdm(range( th.shape[0] )):
       p[k,:] = self.P_k[k].val( th[k,:] ).T + th[k,:]
 
     rho = mean( abs( zeta ), 1 ).reshape(( zeta.shape[0], 1 ))
@@ -454,7 +458,7 @@ class Phaser( object ):
 
     # return phase estimation as weighted average of phase estimation of all samples
     proto_k = []
-    for ki in range( zetas[0].shape[0] ):
+    for ki in tqdm(range( zetas[0].shape[0] )):
       proto_k.append( FourierSeries.bigSum( [p[ki] for p in proto], wgt ))
 
     return proto_k

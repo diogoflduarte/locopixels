@@ -78,11 +78,12 @@ def SwingAndStanceDetection(tracksfile, strides_filename, CleanArtifs=True, Filt
         print('Done!')
         print(' ')
 
-def get_stride_phase_from_events(FR_SwOn, FR_StOn, usegpu=True):
+def get_stride_phase_from_events(FR_SwOn, FR_StOn, usegpu=True): # fix input bug
     # todo: bugged
     if usegpu:
         phase_continuous = cupy.zeros(FR_SwOn.shape)
         phase_inflexion  = cupy.zeros(FR_SwOn.shape)
+        stride_indices   = np.zeros(FR_SwOn.shape, dtype=int)
     else:
         phase_continuous = np.zeros(FR_SwOn.shape)
         phase_inflexion  = np.zeros(FR_SwOn.shape)

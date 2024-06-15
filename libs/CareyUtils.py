@@ -390,7 +390,7 @@ def gaussian(mu, sigma, pts):
 
     return np.exp(-np.power(x - mu, 2.) / (2 * np.power(sigma, 2.)))
 
-def gaussian_smoothing(sig, sigma, usegpu=False):
+def gaussian_smoothing(sig, sigma, usegpu=False, asgpu=False):
     '''
 
     Parameters
@@ -411,7 +411,11 @@ def gaussian_smoothing(sig, sigma, usegpu=False):
     if usegpu is False:
         smoothed_signal = fft_convolution(sig, kernel)
     else:
-        smoothed_signal = cupyx.scipy.ndimage.gaussian_filter1d(cupy.array(sig), sigma).get()
+        if type(sig) is np.ndarray:
+            sig = cupy.array(sig)
+        smoothed_signal = cupyx.scipy.ndimage.gaussian_filter1d(sig, sigma)
+        if not asgpu:
+            smoothed_signal = smoothed_signal.get()
     return smoothed_signal
 
 @jit(nopython=True)
@@ -515,6 +519,47 @@ def profile_function(func, *args, **kwargs):
     print(stream.getvalue())
 
     return result
+
+
+def find_segments_below_threshold(signal, threshold, min_block_length):
+    # Step 1: Create a mask for points below threshold
+    below_threshold_mask = signal < threshold
+
+    # Step 2: Find boundaries between consecutive points in mask
+    diff_mask = np.diff(below_threshold_mask.astype(int))
+
+    # Ensure block_starts and block_ends include the start and end of the array if necessary
+    block_starts = np.where(diff_mask == 1)[0] + 1
+    block_ends = np.where(diff_mask == -1)[0] + 1
+
+    # Handle cases where the signal starts or ends with a below-threshold block
+    if below_threshold_mask[0]:
+        block_starts = np.insert(block_starts, 0, 0)
+    if below_threshold_mask[-1]:
+        block_ends = np.append(block_ends, len(signal))
+
+    # Step 3: Filter blocks by minimum length
+    block_lengths = block_ends - block_starts
+    valid_blocks_mask = block_lengths >= min_block_length
+
+    # Check if there are no valid blocks
+    if np.sum(valid_blocks_mask) == 0:
+        return [], np.zeros_like(signal, dtype=bool)
+
+    # Step 4: Extract segments of interest
+    valid_block_starts = block_starts[valid_blocks_mask]
+    valid_block_ends = block_ends[valid_blocks_mask]
+
+    # Initialize mask with False (not of interest)
+    mask = np.zeros_like(signal, dtype=bool)
+
+    for start, end in zip(valid_block_starts, valid_block_ends):
+        mask[start:end] = True
+
+    # segments = list(zip(valid_block_starts, valid_block_ends))
+    segments = [slice(start, end) for start, end in zip(valid_block_starts, valid_block_ends)]
+
+    return segments, mask
 
 
 class phase():
