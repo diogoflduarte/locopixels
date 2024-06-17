@@ -102,5 +102,5 @@ firing_rates_phase_sessionwise[['mPCA1', 'mPCA2', 'mPCA3', 'mPCA4', 'mPCA5', 'mP
 pawcolors =  [[1, 0, 0], [1, 0, 1], [0, 0, 1], [0, 1, 1]]
 app = CareyPlots.twinplots(firing_rates_phase_sessionwise, 'bPCA1', 'bPCA2', 'bPCA3', 'mPCA1', 'mPCA2', 'mPCA3', pop='global_phase',
                                                             colorby=['FR_StOn', 'HR_StOn', 'FL_StOn', 'HL_StOn'], linewidth=0,
-                                                            custom_colors=pawcolors,
+                                                            custom_colors=['blue', 'red', 'cyan', 'magenta'],
                                                             DEF_SIZE=5, POP_SIZE=10)

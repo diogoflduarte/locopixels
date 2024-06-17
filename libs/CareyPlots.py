@@ -653,7 +653,7 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', colormap='phase', pop
     alphas = None
     if custom_colors is not None:
         if len(custom_colors) == len(colorby):
-            custom_colors.append((0.8, 0.8, 0.8))
+            custom_colors.append('rgba(1,1,1,0.01)')
             alphas = np.ones(len(custom_colors))
             alphas[-1] = 0.1
         elif len(custom_colors) < len(colorby):
@@ -679,11 +679,12 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', colormap='phase', pop
         color_code[idx] = np.array(colorby)[vals]
         return color_code.astype(str)
 
+
     if isinstance(colorby, list):
-        color_discrete_map = {(colorby + ['0'])[i]: 'rgba' +\
-             str(plt.matplotlib.colors._to_rgba_no_colorcycle(custom_colors[i], alphas[i])) \
-                              for i in range(len(custom_colors))}
-        # color_discrete_map = {(colorby + ['0'])[i]: str(custom_colors[i]) for i in range(len(custom_colors))}
+        # color_discrete_map = {(colorby + ['0'])[i]: 'rgba' +\
+        #      str(plt.matplotlib.colors._to_rgba_no_colorcycle(custom_colors[i], alphas[i])) \
+        #                       for i in range(len(custom_colors))}
+        color_discrete_map = {(colorby + ['0'])[i]: str(custom_colors[i]) for i in range(len(custom_colors))}
         color_code = get_color_codes(df, colorby, custom_colors)
         print(np.unique(color_code))
         print(color_discrete_map)
