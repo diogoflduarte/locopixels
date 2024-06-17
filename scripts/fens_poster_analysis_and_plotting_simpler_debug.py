@@ -101,6 +101,6 @@ mossy_pca = sklearn.decomposition.PCA(n_components=6).fit_transform(firing_rates
 firing_rates_phase_sessionwise[['mPCA1', 'mPCA2', 'mPCA3', 'mPCA4', 'mPCA5', 'mPCA6']] = mossy_pca[:,:6]
 pawcolors =  [[1, 0, 0], [1, 0, 1], [0, 0, 1], [0, 1, 1]]
 app = CareyPlots.twinplots(firing_rates_phase_sessionwise, 'bPCA1', 'bPCA2', 'bPCA3', 'mPCA1', 'mPCA2', 'mPCA3', pop='global_phase',
-                                                            colorby=['FR_StOn', 'HR_StOn', 'FL_StOn', 'HL_StOn'], linewidth=0,
-                                                            custom_colors=['blue', 'red', 'cyan', 'magenta'],
-                                                            DEF_SIZE=5, POP_SIZE=10)
+                                                            colorby=['FR_SwOn', 'HR_SwOn', 'FL_SwOn', 'HL_SwOn'], linewidth=0,
+                                                            custom_colors=['red', 'blue', 'magenta', 'cyan'],
+                                                            DEF_SIZE=5, POP_SIZE=10, show_grid=True, show_background=False)

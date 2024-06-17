@@ -647,7 +647,7 @@ def create_paw_traces(df, paw_positions=['FR', 'HR', 'FL', 'HL'], phase_column='
         )
         traces.append(trace)
     return traces
-def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', colormap='phase', pop='stride', DEF_SIZE=1, POP_SIZE=10, custom_colors=None, linewidth=0, opacity=1, hdatafields=None):
+def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', colormap='phase', pop='stride', DEF_SIZE=1, POP_SIZE=10, custom_colors=None, linewidth=0, opacity=1, hdatafields=None, show_grid=True, show_background=True):
     highlight_array = np.ones(len(df)) * DEF_SIZE
     highlight_array[0] = POP_SIZE
     alphas = None
@@ -663,11 +663,11 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', colormap='phase', pop
 
     app.layout = html.Div([
         html.Div([
-            dcc.Graph(id='scatter-plot-left')
+            dcc.Graph(id='scatter-plot-left', style={'height': '90vh'})
         ], style={'width': '48%', 'display': 'inline-block'}),
 
         html.Div([
-            dcc.Graph(id='scatter-plot-right')
+            dcc.Graph(id='scatter-plot-right', style={'height': '90vh'})
         ], style={'width': '48%', 'display': 'inline-block'})
     ])
 
@@ -675,19 +675,12 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', colormap='phase', pop
         color_code = np.zeros((len(df)), dtype='<U7')
         color_code[:] = '0'
         idx, vals = np.where(np.array(df[colorby].values))
-        # color_code[idx] = vals
         color_code[idx] = np.array(colorby)[vals]
         return color_code.astype(str)
 
-
     if isinstance(colorby, list):
-        # color_discrete_map = {(colorby + ['0'])[i]: 'rgba' +\
-        #      str(plt.matplotlib.colors._to_rgba_no_colorcycle(custom_colors[i], alphas[i])) \
-        #                       for i in range(len(custom_colors))}
         color_discrete_map = {(colorby + ['0'])[i]: str(custom_colors[i]) for i in range(len(custom_colors))}
         color_code = get_color_codes(df, colorby, custom_colors)
-        print(np.unique(color_code))
-        print(color_discrete_map)
         fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color=color_code, size_max=POP_SIZE, color_discrete_map=color_discrete_map, hover_data=hdatafields)
         fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, color=color_code, size_max=POP_SIZE, color_discrete_map=color_discrete_map, hover_data=hdatafields)
     elif isinstance(colorby, str):
@@ -696,14 +689,18 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', colormap='phase', pop
     else:
         fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, size_max=POP_SIZE, hover_data=hdatafields)
         fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, size_max=POP_SIZE)
-        # fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color_discrete_sequence=['black'], size_max=POP_SIZE, hover_data=hdatafields)
-        # fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, color_discrete_sequence=['black'], size_max=POP_SIZE)
 
     fig_left.update_traces(marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
     fig_right.update_traces(marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
 
-    fig_left.update_layout(margin=dict(l=0, r=0, t=0, b=0))
-    fig_right.update_layout(margin=dict(l=0, r=0, t=0, b=0))
+    scene_update = dict(
+        xaxis=dict(showbackground=show_background, showgrid=show_grid, showline=True, zeroline=True, linecolor='black', linewidth=1),
+        yaxis=dict(showbackground=show_background, showgrid=show_grid, showline=True, zeroline=True, linecolor='black', linewidth=1),
+        zaxis=dict(showbackground=show_background, showgrid=show_grid, showline=True, zeroline=True, linecolor='black', linewidth=1)
+    )
+
+    fig_left.update_layout(margin=dict(l=0, r=0, t=0, b=0), scene=scene_update)
+    fig_right.update_layout(margin=dict(l=0, r=0, t=0, b=0), scene=scene_update)
 
     @app.callback(
         Output('scatter-plot-left', 'figure'),
