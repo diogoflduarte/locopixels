@@ -663,12 +663,12 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', colormap='phase', pop
 
     app.layout = html.Div([
         html.Div([
-            dcc.Graph(id='scatter-plot-left', style={'height': '90vh'})
-        ], style={'width': '48%', 'display': 'inline-block'}),
+            dcc.Graph(id='scatter-plot-left', style={'height': '90vh'}),
+        ], style={'width': '48%', 'display': 'inline-block', 'vertical-align': 'top'}),
 
         html.Div([
-            dcc.Graph(id='scatter-plot-right', style={'height': '90vh'})
-        ], style={'width': '48%', 'display': 'inline-block'})
+            dcc.Graph(id='scatter-plot-right', style={'height': '90vh'}),
+        ], style={'width': '48%', 'display': 'inline-block', 'vertical-align': 'top'})
     ])
 
     def get_color_codes(df, colorby, custom_colors):

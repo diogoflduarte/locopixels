@@ -100,7 +100,12 @@ firing_rates_phase_sessionwise[['bPCA1', 'bPCA2', 'bPCA3']] = behav_pca[:,:3]
 mossy_pca = sklearn.decomposition.PCA(n_components=6).fit_transform(firing_rates_phase_sessionwise[mossy_fibers.astype(str)])
 firing_rates_phase_sessionwise[['mPCA1', 'mPCA2', 'mPCA3', 'mPCA4', 'mPCA5', 'mPCA6']] = mossy_pca[:,:6]
 pawcolors =  [[1, 0, 0], [1, 0, 1], [0, 0, 1], [0, 1, 1]]
+##
 app = CareyPlots.twinplots(firing_rates_phase_sessionwise, 'bPCA1', 'bPCA2', 'bPCA3', 'mPCA1', 'mPCA2', 'mPCA3', pop='global_phase',
                                                             colorby=['FR_SwOn', 'HR_SwOn', 'FL_SwOn', 'HL_SwOn'], linewidth=0,
                                                             custom_colors=['red', 'blue', 'magenta', 'cyan'],
                                                             DEF_SIZE=5, POP_SIZE=10, show_grid=True, show_background=False)
+##
+app = CareyPlots.twinplots(firing_rates_phase_sessionwise, 'bPCA1', 'bPCA2', 'bPCA3', 'mPCA1', 'mPCA2', 'mPCA3',
+                                                            colorby='global_phase', pop='locomotor_cycle', linewidth=0,
+                                                            opacity=0.3, show_grid=True, show_background=False, DEF_SIZE=1, POP_SIZE=20)
