@@ -561,6 +561,44 @@ def find_segments_below_threshold(signal, threshold, min_block_length):
 
     return segments, mask
 
+def boolean_interp(x, xp, fp):
+    """
+    Interpolates boolean values from `fp` onto `x` based on closest `xp`.
+
+    Parameters:
+    - x : array_like
+        Array representing the target boolean indices.
+    - f : array_like
+        Array representing the boolean values to be interpolated.
+    - xp : array_like
+        Array representing the original boolean indices.
+    - fp : array_like
+        Array representing the boolean values at `xp`.
+
+    Returns:
+    - array_like
+        Interpolated boolean values for `x`.
+    """
+    # Initialize result array for x
+    f = np.full_like(x, False)
+
+    # Find indices where fp (time1) is True
+    true_indices_fp = np.where(fp)[0]
+
+    # Map True values from fp to closest xp in x
+    for idx in true_indices_fp:
+        xp_value = xp[idx]
+        closest_idx = np.argmin(np.abs(x - xp_value))
+        f[closest_idx] = True
+
+    return f
+
+def find_string_in_list(my_list, text):
+    elements_containing_apple = [(element, idx) for idx, element in enumerate(my_list) if
+                                 isinstance(element, str) and text in element]
+    matching_elements = [element for element, idx in elements_containing_apple]
+    matching_indices = [idx for element, idx in elements_containing_apple]
+    return matching_elements, matching_indices
 
 class phase():
     def subtract(a, b):

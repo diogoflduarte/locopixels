@@ -29,7 +29,7 @@ warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def multiLinePlot(data, colors, linewidth=1, alpha=0.5, x=None):
-    plt.figure()
+    # plt.figure()
     if isinstance(data, np.ndarray):
         if x is None:
             plt.plot(data, color=colors, linewidth=linewidth, alpha=alpha)
@@ -424,7 +424,6 @@ def create_colormap(rgb_color):
     n_bins = 100  # Discretizes the interpolation into 100 steps
     cmap_name = 'custom_cmap'
     return LinearSegmentedColormap.from_list(cmap_name, colors, N=n_bins)
-
 def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=sns.cm.crest_r, lw=1):
     """
     Plots PC1 vs PC2 as lines with color coding by the values of a specified column.
@@ -648,9 +647,17 @@ def create_paw_traces(df, paw_positions=['FR', 'HR', 'FL', 'HL'], phase_column='
         )
         traces.append(trace)
     return traces
-def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZE=1, POP_SIZE=10, colormap='phase', linewidth=0.1, opacity=0.5, hdatafields=None):
+def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', colormap='phase', pop='stride', DEF_SIZE=1, POP_SIZE=10, custom_colors=None, linewidth=0, opacity=1, hdatafields=None):
     highlight_array = np.ones(len(df)) * DEF_SIZE
     highlight_array[0] = POP_SIZE
+    alphas = None
+    if custom_colors is not None:
+        if len(custom_colors) == len(colorby):
+            custom_colors.append((0.8, 0.8, 0.8))
+            alphas = np.ones(len(custom_colors))
+            alphas[-1] = 0.1
+        elif len(custom_colors) < len(colorby):
+            raise ValueError("Length of custom_colors must be at least as long as colorby")
 
     app = dash.Dash(__name__)
 
@@ -664,14 +671,38 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZ
         ], style={'width': '48%', 'display': 'inline-block'})
     ])
 
-    fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale=colormap, hover_data=hdatafields) # otherwise 'phase'
-    fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale=colormap)
+    def get_color_codes(df, colorby, custom_colors):
+        color_code = np.zeros((len(df)), dtype='<U7')
+        color_code[:] = '0'
+        idx, vals = np.where(np.array(df[colorby].values))
+        # color_code[idx] = vals
+        color_code[idx] = np.array(colorby)[vals]
+        return color_code.astype(str)
 
-    fig_left.update_traces( marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
+    if isinstance(colorby, list):
+        color_discrete_map = {(colorby + ['0'])[i]: 'rgba' +\
+             str(plt.matplotlib.colors._to_rgba_no_colorcycle(custom_colors[i], alphas[i])) \
+                              for i in range(len(custom_colors))}
+        # color_discrete_map = {(colorby + ['0'])[i]: str(custom_colors[i]) for i in range(len(custom_colors))}
+        color_code = get_color_codes(df, colorby, custom_colors)
+        print(np.unique(color_code))
+        print(color_discrete_map)
+        fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color=color_code, size_max=POP_SIZE, color_discrete_map=color_discrete_map, hover_data=hdatafields)
+        fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, color=color_code, size_max=POP_SIZE, color_discrete_map=color_discrete_map, hover_data=hdatafields)
+    elif isinstance(colorby, str):
+        fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale=colormap, hover_data=hdatafields)
+        fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale=colormap, hover_data=hdatafields)
+    else:
+        fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, size_max=POP_SIZE, hover_data=hdatafields)
+        fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, size_max=POP_SIZE)
+        # fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color_discrete_sequence=['black'], size_max=POP_SIZE, hover_data=hdatafields)
+        # fig_right = px.scatter_3d(df, x=n1, y=n2, z=n3, size=highlight_array, color_discrete_sequence=['black'], size_max=POP_SIZE)
+
+    fig_left.update_traces(marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
     fig_right.update_traces(marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
 
-    fig_left.update_layout(margin=dict(l=5, r=5, t=5, b=5))
-    fig_right.update_layout(margin=dict(l=5, r=5, t=5, b=5))
+    fig_left.update_layout(margin=dict(l=0, r=0, t=0, b=0))
+    fig_right.update_layout(margin=dict(l=0, r=0, t=0, b=0))
 
     @app.callback(
         Output('scatter-plot-left', 'figure'),
@@ -712,153 +743,6 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', pop='stride', DEF_SIZ
         return fig_left, fig_right
 
     app.run_server(debug=True)
-
-    return app
-def twinplots_with_paw_tracks(df, b1, b2, b3, phase_column, paw_positions, colorby='phase', pop='stride', DEF_SIZE=1, POP_SIZE=10, colormap='phase', linewidth=0.1, opacity=0.5, hdatafields=None, paw_colors=None):
-    highlight_array = np.ones(len(df)) * DEF_SIZE
-    highlight_array[0] = POP_SIZE
-
-    app = dash.Dash(__name__)
-
-    app.layout = html.Div([
-        html.Div([
-            dcc.Graph(id='scatter-plot-left')
-        ], style={'width': '48%', 'display': 'inline-block'}),
-
-        html.Div([
-            dcc.Graph(id='scatter-plot-right')
-        ], style={'width': '48%', 'display': 'inline-block'})
-    ])
-
-    fig_left = px.scatter_3d(df, x=b1, y=b2, z=b3, size=highlight_array, color=colorby, size_max=POP_SIZE, color_continuous_scale=colormap, hover_data=hdatafields)
-    fig_left.update_traces(marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
-    fig_left.update_layout(margin=dict(l=5, r=5, t=5, b=5))
-
-    fig_right = go.Figure()
-    paw_traces = create_paw_traces(df, paw_positions, phase_column, paw_colors)
-    for trace in paw_traces:
-        fig_right.add_trace(trace)
-
-    fig_right.update_layout(margin=dict(l=5, r=5, t=5, b=5))
-
-    @app.callback(
-        Output('scatter-plot-left', 'figure'),
-        Output('scatter-plot-right', 'figure'),
-        Input('scatter-plot-left', 'clickData'),
-        Input('scatter-plot-right', 'clickData'),
-        State('scatter-plot-left', 'relayoutData'),
-        State('scatter-plot-right', 'relayoutData')
-    )
-    def update_plots(clickDataLeft, clickDataRight, relayoutDataLeft, relayoutDataRight):
-        nonlocal highlight_array
-
-        plot_clicked = ctx.triggered_id
-        if plot_clicked is None:
-            return fig_left, fig_right
-
-        if plot_clicked == 'scatter-plot-left':
-            selected_index = clickDataLeft['points'][0]['pointNumber']
-            selected_stride = df[pop].iloc[selected_index]
-        else:
-            selected_index = clickDataRight['points'][0]['pointNumber']
-            selected_stride = df[pop].iloc[selected_index]
-
-        pop_indices = np.where(df[pop].values == selected_stride)
-        highlight_array[:] = DEF_SIZE
-        highlight_array[pop_indices] = POP_SIZE
-
-        fig_left.update_traces(marker=dict(size=highlight_array, line=dict(width=linewidth), opacity=opacity))
-
-        # Update the right plot based on the selected stride
-        for trace in fig_right.data:
-            trace_selected_stride = trace.customdata[0][0]
-            if trace_selected_stride == selected_stride:
-                trace.update(line=dict(width=2), marker=dict(size=10))
-            else:
-                trace.update(line=dict(width=linewidth), marker=dict(size=highlight_array))
-
-        camera_left = relayoutDataLeft.get('scene.camera') if relayoutDataLeft else None
-        if camera_left:
-            fig_left.update_layout(scene_camera=camera_left)
-
-        return fig_left, fig_right
-
-    app.run_server(debug=True)
-
-    return app
-def exploreVideo(video_path):
-    # Initialize the Dash app
-    app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
-
-    # Open the video file
-    cap = cv2.VideoCapture(video_path)
-
-    # Get total number of frames
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    # Define the layout of the app
-    app.layout = dbc.Container([
-        html.H1("Video Frame Viewer"),
-        html.Div([
-            dcc.Input(
-                id='frame-input',
-                type='number',
-                placeholder='Enter frame number',
-                min=0,
-                max=total_frames - 1,
-                step=1,
-                value=0
-            ),
-            html.Button('Previous Frame', id='previous-frame', n_clicks=0),
-            html.Button('Next Frame', id='next-frame', n_clicks=0),
-            dcc.Slider(
-                id='frame-slider',
-                min=0,
-                max=total_frames - 1,
-                value=0,
-                marks={i: str(i) for i in range(0, total_frames, max(1, total_frames // 10))}
-            ),
-            html.Div(id='frame-info')
-        ]),
-        html.Div(id='video-frame-container')
-    ], fluid=True)
-
-    # Define callback to update frame based on slider value
-    @app.callback(
-        [Output('video-frame-container', 'children'),
-         Output('frame-info', 'children'),
-         Output('frame-input', 'value')],
-        [Input('frame-slider', 'value'),
-         Input('previous-frame', 'n_clicks'),
-         Input('next-frame', 'n_clicks')],
-        [dash.dependencies.State('frame-input', 'value')]
-    )
-    def update_frame(slider_value, previous_clicks, next_clicks, frame_input_value):
-        changed_id = [p['prop_id'] for p in dash.callback_context.triggered][0]
-
-        if   dash.callback_context.triggered_id == 'previous-frame':
-            frame_number = int(frame_input_value) - 1
-        elif dash.callback_context.triggered_id == 'next-frame':
-            frame_number = int(frame_input_value) + 1
-        else:
-            frame_number = int(slider_value)
-
-        # Set the video capture to the desired frame
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-
-        # Read the frame
-        ret, frame = cap.read()
-
-        # Convert the frame to base64 encoding
-        if ret:
-            _, buffer = cv2.imencode('.png', frame)
-            encoded_image = base64.b64encode(buffer).decode()
-            image_src = f'data:image/png;base64,{encoded_image}'
-        else:
-            image_src = None
-
-        return html.Img(src=image_src,
-                        style={'max-width': '100%'}), f'Frame {frame_number + 1}/{total_frames}', frame_number
 
     return app
 def adjust_font_size(ax=plt.gca(), increment=0):
