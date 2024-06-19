@@ -1,5 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
+import matplotlib.animation as animation
 import seaborn as sns
 from CareyConstants import CareyConstants
 import CareyUtils
@@ -25,6 +26,7 @@ import base64
 import pandas as pd
 from pandas.core.common import SettingWithCopyWarning
 import warnings
+from matplotlib.animation import FuncAnimation
 warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -424,7 +426,7 @@ def create_colormap(rgb_color):
     n_bins = 100  # Discretizes the interpolation into 100 steps
     cmap_name = 'custom_cmap'
     return LinearSegmentedColormap.from_list(cmap_name, colors, N=n_bins)
-def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=sns.cm.crest_r, lw=1):
+def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=sns.cm.crest_r, lw=1, alpha=1.0, fig=None, ax=None, colorbar=True):
     """
     Plots PC1 vs PC2 as lines with color coding by the values of a specified column.
 
@@ -449,13 +451,15 @@ def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=sns.cm.crest_r, lw=
     # Normalize the color column for coloring
     norm = plt.Normalize(var1.min(), var1.max())
 
-    plt.figure()
+    if fig is None:
+        fig, ax = plt.subplots()
     plt.ion()
 
     if trials is None:
         df['trials'] = 0
         trials = 'trials'
     print( np.unique(df[trials]) )
+
     for tt, trial in enumerate(np.unique(df[trials])):
         this_trial_idx = df[trials]==trial
         pc1 = df[x][this_trial_idx].values
@@ -467,25 +471,23 @@ def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=sns.cm.crest_r, lw=
         segments = np.concatenate([points[:-1], points[1:]], axis=1)
 
         # Create a LineCollection
-        lc = LineCollection(segments, cmap=cmap, norm=norm)
+        lc = LineCollection(segments, cmap=cmap, norm=norm, rasterized=True)
         lc.set_array(var1)
         lc.set_linewidth(lw)
-
+        lc.set_alpha(alpha)
         plt.gca().add_collection(lc)
         plt.xlim(pc1.min(), pc1.max())
         plt.ylim(pc2.min(), pc2.max())
 
-    # Plotting
-    # plt.figure(figsize=(10, 6))
-
-    # Create a colorbar
-    cbar = plt.colorbar(lc)
-    # cbar.set_label(colorby)
+    if colorbar:
+        cbar = plt.colorbar(lc)
 
     plt.xlabel(x)
     plt.ylabel(y)
     plt.show()
-def multicoloredline_3d(df, x, y, z, colorby, trials=None, cmap=plt.cm.viridis, lw=1):
+
+    return fig, ax
+def multicoloredline_3d(df, x, y, z, colorby, trials=None, cmap=plt.cm.viridis, lw=1, alpha=1.0):
     """
     Plots PC1 vs PC2 vs PC3 as 3D lines with color coding by the values of a specified column.
 
@@ -531,7 +533,7 @@ def multicoloredline_3d(df, x, y, z, colorby, trials=None, cmap=plt.cm.viridis, 
         lc = Line3DCollection(segments, cmap=cmap, norm=norm)
         lc.set_array(var1_trial)
         lc.set_linewidth(lw)
-
+        lc.set_alpha(alpha)
         ax.add_collection3d(lc, zs=pc3_trial, zdir='z')
 
     # Create a colorbar
@@ -548,6 +550,8 @@ def multicoloredline_3d(df, x, y, z, colorby, trials=None, cmap=plt.cm.viridis, 
     ax.set_zlim([pc2.min(), pc2.max()])
 
     plt.show()
+
+    return fig, ax
 def plot_coefficients(coefficients, features=None, colors=None, metric='Principal Component'):
     """
     Plots barplots for the coefficients of principal components.
@@ -653,7 +657,7 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', colormap='phase', pop
     alphas = None
     if custom_colors is not None:
         if len(custom_colors) == len(colorby):
-            custom_colors.append('rgba(1,1,1,0.01)')
+            custom_colors.append('rgba(1,1,1,0.1)')
             alphas = np.ones(len(custom_colors))
             alphas[-1] = 0.1
         elif len(custom_colors) < len(colorby):
@@ -770,3 +774,21 @@ def adjust_font_size(ax=plt.gca(), increment=0):
     if legend:
         for text in legend.get_texts():
             text.set_fontsize(legend_size + increment)
+# def animate_multicoloredline_3d(df, x, y, z, colorby, trials=None, cmap=plt.cm.viridis, lw=1, alpha=1.0, frames=360, interval=20, output=None):
+#     fig, ax = multicoloredline_3d(df, x, y, z, colorby, trials, cmap, lw, alpha)
+#
+#     def rotate(angle):
+#         ax.view_init(elev=30, azim=angle)
+#         print(f"Animating frame {angle:.1f}")
+#         return ax
+#
+#     anim = FuncAnimation(fig, rotate, frames=np.arange(0, 360, 360/frames), interval=interval)
+#
+#     if output:
+#         anim.save(output, writer=PillowWriter())
+#         print(f"Animation saved as {output}")
+#
+#     plt.show()
+#     return fig, ax
+# def dummyf():
+#     pass

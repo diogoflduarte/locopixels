@@ -118,3 +118,4 @@ app = CareyPlots.twinplots(firing_rates_phase_sessionwise, 'bPCA1', 'bPCA2', 'bP
 app = CareyPlots.twinplots(firing_rates_phase_sessionwise, 'mPCA1', 'mPCA2', 'mPCA3', 'pPCA1', 'pPCA2', 'pPCA3',
                                                             colorby='global_phase', pop='locomotor_cycle', linewidth=0,
                                                             opacity=0.3, show_grid=True, show_background=False, DEF_SIZE=1, POP_SIZE=20)
+
