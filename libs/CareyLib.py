@@ -29,6 +29,7 @@ import ibllib
 from scipy.signal import savgol_filter
 from numba import jit
 import warnings
+from tqdm import tqdm
 
 progname = os.path.basename(sys.argv[0])
 progversion = "0.1"
@@ -1230,7 +1231,7 @@ class NeuropixelsExperiment:
         # .........................................................
 
         # iterate through files
-        for fileidx, file in enumerate(file_list):
+        for fileidx, file in enumerate(tqdm(file_list)):
             # assuming the 3 column weird thing I had:
             if verbose:
                 print(f'Compiling metadata behavior for file {fileidx+1} of {len(file_list)}... ', end="")
@@ -1273,13 +1274,17 @@ class NeuropixelsExperiment:
             if verbose:
                 print('Done.')
 
+        print(f'{fileidx} behavioral trial files found in this session')
+
         # save to file
         if isinstance(save_to_file, str):
             __, ext = os.path.splitext(save_to_file)
             if ext == '.pkl':
                 metadata_session.to_pickle(save_to_file)
-            if ext == '.csv':
+            elif ext == '.csv':
                 metadata_session.to_csv(save_to_file)
+            elif ext == '.hdf':
+                metadata_session.to_hdf(save_to_file, key='data')
 
             print('saved sync pulses in {}'.format(save_to_file))
 
@@ -1308,7 +1313,7 @@ class NeuropixelsExperiment:
 
         return file_list[0]
 
-    def compileSessionwiseTracks(self, tracksdir, match='shuffle1', ext='h5', mouse_name=True, verbose=True, sortby='trial'):
+    def compileSessionwiseTracks(self, tracksdir, match='shuffle1', ext='h5', mouse_name=True, verbose=True, sortby='trial', qthresh=0.05):
         """
         compileSessionwiseTracks compiles DLC tracks into a file with all tracks for the whole session
         :param match:
@@ -1351,24 +1356,24 @@ class NeuropixelsExperiment:
             this_trial = pd.DataFrame(data=None, columns=columns)
             this_trial['trial']     = np.ones(n_frames, int) * file_props['trial']
             this_trial['frame']     = np.arange(n_frames)
-            this_trial['FRx']       = these_tracks['FR_bottom']['x'].values.astype('float32')
-            this_trial['FRy'] = these_tracks['FR_bottom']['y'].values.astype('float32')
-            this_trial['FRz'] = these_tracks['FR_side']['y'].values.astype('float32')
-            this_trial['HRx'] = these_tracks['HR_bottom']['x'].values.astype('float32')
-            this_trial['HRy'] = these_tracks['HR_bottom']['y'].values.astype('float32')
-            this_trial['HRz'] = these_tracks['HR_side']['y'].values.astype('float32')
-            this_trial['FLx'] = these_tracks['FL_bottom']['x'].values.astype('float32')
-            this_trial['FLy'] = these_tracks['FL_bottom']['y'].values.astype('float32')
-            this_trial['FLz'] = these_tracks['FL_side']['y'].values.astype('float32')
-            this_trial['HLx'] = these_tracks['HL_bottom']['x'].values.astype('float32')
-            this_trial['HLy'] = these_tracks['HL_bottom']['y'].values.astype('float32')
-            this_trial['HLz'] = these_tracks['HL_side']['y'].values.astype('float32')
-            this_trial['Tail1x'] = these_tracks['tail_bottom_1']['x'].values.astype('float32')
-            this_trial['Tail1y'] = these_tracks['tail_bottom_1']['y'].values.astype('float32')
-            this_trial['Tail1z'] = these_tracks['tail_side_1']['y'].values.astype('float32')
-            this_trial['Tail2x'] = these_tracks['tail_bottom_2']['x'].values.astype('float32')
-            this_trial['Tail2y'] = these_tracks['tail_bottom_2']['y'].values.astype('float32')
-            this_trial['Tail2z'] = these_tracks['tail_side_2']['y'].values.astype('float32')
+            this_trial['FRx'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['FR_bottom']['x'], these_tracks['FR_bottom']['likelihood'], qthresh).values.astype('float32')
+            this_trial['FRy'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['FR_bottom']['y'], these_tracks['FR_bottom']['likelihood'], qthresh).values.astype('float32')
+            this_trial['FRz'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['FR_side']['y'], these_tracks['FR_side']['likelihood'], qthresh).values.astype('float32')
+            this_trial['HRx'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['HR_bottom']['x'], these_tracks['HR_bottom']['likelihood'], qthresh).values.astype('float32')
+            this_trial['HRy'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['HR_bottom']['y'], these_tracks['HR_bottom']['likelihood'], qthresh).values.astype('float32')
+            this_trial['HRz'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['HR_side']['y'], these_tracks['HR_side']['likelihood'], qthresh).values.astype('float32')
+            this_trial['FLx'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['FL_bottom']['x'], these_tracks['FL_bottom']['likelihood'], qthresh).values.astype('float32')
+            this_trial['FLy'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['FL_bottom']['y'], these_tracks['FL_bottom']['likelihood'], qthresh).values.astype('float32')
+            this_trial['FLz'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['FL_side']['y'], these_tracks['FL_side']['likelihood'], qthresh).values.astype('float32')
+            this_trial['HLx'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['HL_bottom']['x'], these_tracks['HL_bottom']['likelihood'], qthresh).values.astype('float32')
+            this_trial['HLy'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['HL_bottom']['y'], these_tracks['HL_bottom']['likelihood'], qthresh).values.astype('float32')
+            this_trial['HLz'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['HL_side']['y'], these_tracks['HL_side']['likelihood'], qthresh).values.astype('float32')
+            this_trial['Tail1x'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['tail_bottom_1']['x'], these_tracks['tail_bottom_1']['likelihood'], qthresh).values.astype('float32')
+            this_trial['Tail1y'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['tail_bottom_1']['y'], these_tracks['tail_bottom_1']['likelihood'], qthresh).values.astype('float32')
+            this_trial['Tail1z'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['tail_side_1']['y'], these_tracks['tail_side_1']['likelihood'], qthresh).values.astype('float32')
+            this_trial['Tail2x'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['tail_bottom_2']['x'], these_tracks['tail_bottom_2']['likelihood'], qthresh).values.astype('float32')
+            this_trial['Tail2y'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['tail_bottom_2']['y'], these_tracks['tail_bottom_2']['likelihood'], qthresh).values.astype('float32')
+            this_trial['Tail2z'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['tail_side_2']['y'], these_tracks['tail_side_2']['likelihood'], qthresh).values.astype('float32')
             this_trial['tracksfile'] = file
 
             df = df.append(this_trial, ignore_index=True)
@@ -1602,6 +1607,44 @@ class NeuropixelsExperiment:
         metadata['wheel_speed']     = np.interp(metadata['sessionwise_time'], time_array, speed_data)
 
         return metadata
+
+    def interpolateLowConfidenceTracks(ps_position, ps_likelihood, qthresh):
+        badpoints = ps_likelihood < np.quantile(ps_likelihood, qthresh)
+        ps_position.loc[badpoints] = np.nan
+        ps_position = ps_position.interpolate(method='polynomial', order=3)
+        return ps_position
+
+    def compile_wheel_speed(self, outfile=None):
+
+        nimeta =    [x for x in os.listdir(os.path.join(self.npx_apmeta, '..', '..')) if x[-9:] == 'nidq.meta'][0]
+        nibin =     [x for x in os.listdir(os.path.join(self.npx_apmeta, '..', '..')) if x[-8:] == 'nidq.bin'][0]
+        nimeta = os.path.join(self.npx_apmeta, '..', '..', nimeta)
+        nibin  = os.path.join(self.npx_apmeta, '..', '..', nibin)
+        metadata = ibllib.io.spikeglx.read_meta_data(nimeta)
+
+        DT = 1 / metadata['niSampRate']
+        __, dist, tim = CareyLib.RotaryEncoder.getSpeedAndDistance_fromFile(nibin)
+
+        # downsample
+        session_time = dist.shape[0] * DT
+        ds_rate = 1000  # Hz
+        time_array_downsample = np.arange(0, dist.shape[0] * DT, 1 / ds_rate)
+
+        dist_downsample = np.interp(time_array_downsample, tim, dist)
+
+        dist = dist_downsample
+        tim = time_array_downsample
+
+        df = pd.DataFrame(data=None, columns=['mouse', 'session', 'time', 'distance'])
+        df['distance'] = dist
+        df['time']     = tim
+        df = df.assign(mouse=self.mouse)
+        df = df.assign(session=self.session)
+
+        if outfile is not None:
+            df.to_hdf(outfile, key='data')
+
+        return df
 
 def periCShistogram(cs, ss, plotting=0):
     # plots the peri-ccomplex spike histogram of simple spikes

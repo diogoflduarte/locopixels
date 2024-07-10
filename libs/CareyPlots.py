@@ -426,7 +426,7 @@ def create_colormap(rgb_color):
     n_bins = 100  # Discretizes the interpolation into 100 steps
     cmap_name = 'custom_cmap'
     return LinearSegmentedColormap.from_list(cmap_name, colors, N=n_bins)
-def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=sns.cm.crest_r, lw=1, alpha=1.0, fig=None, ax=None, colorbar=True):
+def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=plt.cm.viridis, lw=1, alpha=1.0, fig=None, ax=None, colorbar=True):
     """
     Plots PC1 vs PC2 as lines with color coding by the values of a specified column.
 
@@ -435,14 +435,14 @@ def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=sns.cm.crest_r, lw=
     - x: name of the column for PC1 values
     - y: name of the column for PC2 values
     - colorby: name of the column for color coding
-    - rgb_color: a tuple of the RGB color to use for the colormap
+    - trials: name of the column for trial identification, if any
+    - cmap: colormap to use for color coding
+    - lw: line width
+    - alpha: transparency of the lines
+    - fig: matplotlib figure object
+    - ax: matplotlib axes object
+    - colorbar: whether to add a colorbar
     """
-    # Create a colormap from black to the specified RGB color
-    # colors = [(0, 0, 0), rgb_color]  # From black to the specified color
-    # n_bins = 100  # Discretizes the interpolation into 100 steps
-    # cmap_name = 'custom_cmap'
-    # cmap = LinearSegmentedColormap.from_list(cmap_name, colors, N=n_bins)
-
     # Extracting the relevant data
     pc1 = df[x].values
     pc2 = df[y].values
@@ -451,39 +451,41 @@ def multicoloredline_2d(df, x, y, colorby, trials=None, cmap=sns.cm.crest_r, lw=
     # Normalize the color column for coloring
     norm = plt.Normalize(var1.min(), var1.max())
 
-    if fig is None:
+    if fig is None or ax is None:
         fig, ax = plt.subplots()
-    plt.ion()
 
     if trials is None:
         df['trials'] = 0
         trials = 'trials'
-    print( np.unique(df[trials]) )
+    unique_trials = np.unique(df[trials])
 
-    for tt, trial in enumerate(np.unique(df[trials])):
-        this_trial_idx = df[trials]==trial
-        pc1 = df[x][this_trial_idx].values
-        pc2 = df[y][this_trial_idx].values
-        var1 = df[colorby][this_trial_idx].values
+    for trial in unique_trials:
+        this_trial_idx = df[trials] == trial
+        pc1_trial = df[x][this_trial_idx].values
+        pc2_trial = df[y][this_trial_idx].values
+        var1_trial = df[colorby][this_trial_idx].values
 
         # Create line segments
-        points = np.array([pc1, pc2]).T.reshape(-1, 1, 2)
+        points = np.array([pc1_trial, pc2_trial]).T.reshape(-1, 1, 2)
         segments = np.concatenate([points[:-1], points[1:]], axis=1)
 
         # Create a LineCollection
-        lc = LineCollection(segments, cmap=cmap, norm=norm, rasterized=True)
-        lc.set_array(var1)
+        lc = LineCollection(segments, cmap=cmap, norm=norm)
+        lc.set_array(var1_trial)
         lc.set_linewidth(lw)
         lc.set_alpha(alpha)
-        plt.gca().add_collection(lc)
-        plt.xlim(pc1.min(), pc1.max())
-        plt.ylim(pc2.min(), pc2.max())
+        ax.add_collection(lc)
+
+    # Set axis limits
+    ax.set_xlim([pc1.min(), pc1.max()])
+    ax.set_ylim([pc2.min(), pc2.max()])
 
     if colorbar:
-        cbar = plt.colorbar(lc)
+        cbar = plt.colorbar(lc, ax=ax)
+        cbar.set_label(colorby)
 
-    plt.xlabel(x)
-    plt.ylabel(y)
+    ax.set_xlabel(x)
+    ax.set_ylabel(y)
     plt.show()
 
     return fig, ax
@@ -548,6 +550,15 @@ def multicoloredline_3d(df, x, y, z, colorby, trials=None, cmap=plt.cm.viridis, 
     ax.set_xlim([pc1.min(), pc1.max()])
     ax.set_ylim([pc2.min(), pc2.max()])
     ax.set_zlim([pc2.min(), pc2.max()])
+
+    # make the panes transparent
+    ax.xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    # make the grid lines transparent
+    ax.xaxis._axinfo["grid"]['color'] = (1, 1, 1, 0)
+    ax.yaxis._axinfo["grid"]['color'] = (1, 1, 1, 0)
+    ax.zaxis._axinfo["grid"]['color'] = (1, 1, 1, 0)
 
     plt.show()
 
@@ -718,8 +729,11 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', colormap='phase', pop
         nonlocal highlight_array
 
         plot_clicked = ctx.triggered_id
-        if plot_clicked is None:
+        if plot_clicked is None or pop is None:
             return fig_left, fig_right
+
+        if pop is None:
+            pass
 
         camera_left = relayoutDataLeft.get('scene.camera') if relayoutDataLeft else None
         camera_right = relayoutDataRight.get('scene.camera') if relayoutDataRight else None
@@ -746,7 +760,7 @@ def twinplots(df, b1, b2, b3, n1, n2, n3, colorby='phase', colormap='phase', pop
 
     app.run_server(debug=True)
 
-    return app
+    return app, fig_left, fig_right
 def adjust_font_size(ax=plt.gca(), increment=0):
     """
     Adjust all font sizes in the current axes by a specified increment.

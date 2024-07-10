@@ -23,13 +23,16 @@ import CareyEphys
 import seaborn as sns
 import npyx
 import cupy as cp
+import sys
+from concurrent.futures import ThreadPoolExecutor
+
 
 def interpolate(X, n_samples):
     X_interp = []
     for x in X:
         size = x.shape
         idx = np.linspace(0, size[0] - 1, num=n_samples)
-        if len(size) == 1:
+        if len(size) == 1: # only one neuron, the usual use-case
             x_interp = interp1d(np.arange(size[0]), x)(idx)
         else:
             x_interp = np.column_stack([interp1d(np.arange(size[0]), x[:, col])(idx) for col in range(size[1])])
@@ -44,11 +47,11 @@ load_data = False
 cell_type = 'Purkinje Cells'
 # cell_type = 'Mossy Fibers'
 n_cycles = 5000     # locomotor cycles
-n_samples = 100    # 300 # number of samples for the interpolate phase space
-min_max_std = True
+n_samples = 200    # 300 # number of samples for the interpolate phase space
+min_max_std = True # True
 remove_zero_firing_entries = True  # todo: also check this one
 how_to_get_firing_rates = 'compute' # 'load' or 'compute'
-kernel = 0.005 # seconds
+kernel = 0.01 # seconds
 
 ## ############################## LOAD DATA ####################################
 # Load neural data
@@ -62,7 +65,7 @@ firing_rates_file = os.path.join(neural_data_path, 'sessionwise_firing_rates_fas
 # Load behavioral data and extract event onset and offset
 behav_data_path = r'C:\Users\User\Desktop\behavior_analysis\behavioral_manifold\behavioral_manifold.csv'
 if os.getlogin() == 'diogo':
-    behav_data_path = r"X:\data\2022\BATCH5\processing\VIV_23058\S10\Behavioral manifold\behavioral_manifold.csv"
+    behav_data_path = r"X:\data\2022\BATCH5\processing\VIV_23058\S10\Behavioral manifold\behavioral_manifold.h5"
 
 
 if cell_type == 'Purkinje Cells':
@@ -74,51 +77,69 @@ elif cell_type == 'Mossy Fibers':
 mossy_and_purkinke = [91, 111, 115, 151, 198, 226, 241, 246, 259, 400, 402, 415, 88, 209, 266, 274, 382, # Pkj
                       317, 322, 351, 354, 367, 393, 421, 542, 453, 457, 467, 479, 500, 501, 503, 507, 601, 602, 604, 611, 613] # mossy
 
-cols = [str(xx) for xx in mossy_and_purkinke]
-print(f'Reading FRs: {firing_rates_file}')
-
-if how_to_get_firing_rates == 'load':
-    firing_rate = pd.read_csv(firing_rates_file, usecols=cols)
-else:
-    print('Compiling firing rates...')
-    meta = npyx.read_metadata(dataset_folder)
-    n_timepoints = int(meta['highpass']['binary_byte_size'] / meta['highpass']['n_channels_binaryfile'] / 2)
-    time_array = cp.linspace(0, meta['recording_length_seconds'],
-                             n_timepoints)  # really hoping maxime doesn't fix the parsing bug before I finish the PhD
-    firing_rates = []
-    for ii, unit in enumerate(tqdm(selected_cells[1:])):
-        spike_indices = npyx.spk_t.trn(dataset_folder, unit)
-        fr, t = CareyEphys.get_sessionwise_firingrate_singleunit_binning_fullgpu(spike_indices, time_array,
-                                                                                 bwidth=10, gaussdev=kernel,
-                                                                                 fs=CareyConstants.DEF_NPX_FS,
-                                                                                 binnedoutput=True)
-        if ii == 0:
-            firing_rates.append(t)
-        firing_rates.append(fr)
-    data = cp.array(firing_rates).get().transpose()
-    cp._default_memory_pool.free_all_blocks()
-    firing_rate = pd.DataFrame(columns=selected_cells, data=data)
-    print('Done')
-
+neuron_list = selected_cells[1:]
 
 print(f'Reading behavior file: {behav_data_path}')
-behavior = pd.read_csv(behav_data_path)
+behavior = pd.read_hdf(behav_data_path)
+
+
+print('Compiling firing rates...')
+meta = npyx.read_metadata(dataset_folder)
+n_timepoints = int(meta['highpass']['binary_byte_size'] / meta['highpass']['n_channels_binaryfile'] / 2)
+time_array = cp.linspace(0, meta['recording_length_seconds'],
+                         n_timepoints)  # really hoping maxime doesn't fix the parsing bug before I finish the PhD
+firing_rates = []
+for ii, unit in enumerate(tqdm(neuron_list)):
+    spike_indices = npyx.spk_t.trn(dataset_folder, unit)
+    fr, t = CareyEphys.get_sessionwise_firingrate_singleunit_binning_fullgpu(spike_indices, time_array,
+                                                                             bwidth=10, gaussdev=kernel,
+                                                                             fs=CareyConstants.DEF_NPX_FS,
+                                                                             binnedoutput=True)
+    if ii == 0:
+        firing_rates.append(t)
+    firing_rates.append(fr)
+data = cp.array(firing_rates).get().transpose()
+cp._default_memory_pool.free_all_blocks()
+firing_rate = pd.DataFrame(columns=selected_cells, data=data)
+print('Done')
+
+
+print('Downsampling neural firing rates to behavior time')
+firing_rate_full = firing_rate
+del firing_rate
+firing_rate = pd.DataFrame(data=[], columns=firing_rate_full.columns)
+firing_rate['time'] = behavior['sessionwise_time']
+neurons = firing_rate_full.columns[1:].to_list()
+for ii, neuron in enumerate(tqdm(neurons)):
+    firing_rate[neuron] = np.interp(firing_rate['time'], firing_rate_full['time'], firing_rate_full[neuron])
+
+print('Computing locomotor cycle mask')
+firing_rate['locomotor_cycle'] = 0
 on = behavior.loc[behavior['CycleOn'], 'sessionwise_time'].values
 off = behavior.loc[behavior['CycleOff'], 'sessionwise_time'].values
-# on = behavior.loc[behavior['FR_StOn'], 'sessionwise_time'].values
-# on = on[:-1]; off = on[1:]\
 speed = behavior['wheel_speed']
+for i in tqdm(range(n_cycles)):
+    mask = (firing_rate['time'] >= on[i]) & (firing_rate['time'] <= off[i])
+    firing_rate['locomotor_cycle'][mask] = i+1
 
 ################################# PETHs #######################################
 print('Computing population firing rates per locomotion cycle (PETHs) ')
 peth = []
+firing_rate_data = firing_rate[neuron_list].values
+locomotor_cycle = firing_rate['locomotor_cycle'].values
+phase_array = np.linspace(0, 1, n_samples)
 for i in tqdm(range(n_cycles)):
-    mask = (firing_rate['time'] >= on[i]) & (firing_rate['time'] <= off[i])
-    peth_i = firing_rate[mask].iloc[:, 1:].values
-    peth_i = np.array(interpolate(peth_i.T, n_samples=n_samples)).T
-    peth.append(peth_i)
-peth = np.concatenate(peth, axis=0)
-peth = pd.DataFrame(peth, columns=firing_rate.iloc[:, 1:].columns)
+    # mask = firing_rate['locomotor_cycle'] == i+1
+    # peth_i = firing_rate[neuron_list][mask].values
+    # peth_i = np.array(interpolate(peth_i.T, n_samples=n_samples)).T
+    mask = (firing_rate['locomotor_cycle'] == i+1).values
+    peth_i = firing_rate_data[mask, :]
+    this_cycle = np.zeros((n_samples, len(neuron_list)))
+    for nn in range(len(neuron_list)):
+        this_cycle[:, nn] = (np.interp(phase_array, np.linspace(0, 1, peth_i.shape[0]), peth_i[:, nn]))
+    peth.append(this_cycle)
+peth = np.concatenate(np.array(peth), axis=0)
+peth = pd.DataFrame(peth, columns=neuron_list)
 
 trial_id = np.concatenate([np.ones(n_samples)*i for i in range(n_cycles)])
 
@@ -128,16 +149,6 @@ if save_data:
 
 # Standardize
 # todo: check if this meanmax standardization makes any difference
-
-# speed_mean = np.zeros(n_cycles)
-# for i in range(n_cycles):
-#         mask = (behavior['sessionwise_time'] >= on[i]) & (behavior['sessionwise_time'] <= off[i])
-#         speed_mean[i] = np.mean(speed[mask].values)
-
-# # Plot PETHs
-# ## USE FUNCTION
-# plt.figure()
-# for unit in peth_zs.columns:
 if remove_zero_firing_entries:
     peth = peth.loc[:, (peth != 0).any(axis=0)]
 if min_max_std:
@@ -147,15 +158,6 @@ if min_max_std:
 else:
     peth_zs = peth
 
-# Get cycles average speed
-#     plt.plot(np.linspace(0, 100, 300), peth_zs[unit], linewidth=2.5)
-#     plt.xlabel('Global phase (%)', fontsize=15)
-#     plt.ylabel('Firing rate (z-score)', fontsize=15)    
-#     plt.margins(0)
-# plt.gca().spines['top'].set_visible(False)
-# plt.gca().spines['right'].set_visible(False)
-# plt.xticks(fontsize=12)
-# plt.yticks(fontsize=12)
 
 
 ################################## PCA ########################################
@@ -250,6 +252,8 @@ for i in range(3):
 plt.tight_layout()
 plt.show()
 
+sys.exit("early stop")
+
 ##
 
 total_number_of_cycles = int((peth.shape[0] / n_samples))
@@ -274,7 +278,21 @@ subset = neural[neural['locomotor_cycle'].isin(np.arange(0, total_number_of_cycl
 ax = CareyPlots.multicoloredline_3d(subset, pc_names[0], pc_names[1], pc_names[2], 'phase', trials='locomotor_cycle', lw=0.5,
                                     cmap=cmocean.cm.phase, alpha=0.5)
 
-##
+# ##
 app = CareyPlots.twinplots(subset, pc_names[0], pc_names[1], pc_names[2], pc_names[3], pc_names[4], pc_names[5],
-                           colorby='phase', pop='locomotor_cycle', linewidth=0,
-                           opacity=0.3, show_grid=True, show_background=False, DEF_SIZE=1, POP_SIZE=20)
+                           colorby='phase', pop=None, linewidth=0,
+                           opacity=1, show_grid=True, show_background=False, DEF_SIZE=1, POP_SIZE=20)
+#
+
+target_cols = ['time', '190', '317', '351', '354', '421', '452', '457',
+       '470', '500', '501', '504', '513', '518', '525', '531', '533', '601',
+       '602', '621', '151', '185', '198', '226', '236', '245', '400', '402',
+       '415', '423', 'FRx', 'FRy', 'FRz', 'HRx', 'HRy', 'HRz', 'FLx', 'FLy',
+       'FLz', 'HLx', 'HLy', 'HLz', 'wheel_distance', 'wheel_speed', 'FR_SwOn',
+       'FR_StOn', 'HR_SwOn', 'HR_StOn', 'FL_SwOn', 'FL_StOn', 'HL_SwOn',
+       'HL_StOn', 'phase', 'locomotor_cycle', 'FR_SwPh', 'FR_Sw_Stride',
+       'FR_StPh', 'FR_St_Stride', 'HR_SwPh', 'HR_Sw_Stride', 'HR_StPh',
+       'HR_St_Stride', 'FL_SwPh', 'FL_Sw_Stride', 'FL_StPh', 'HL_SwPh',
+       'HL_StPh', 'bPCA1', 'bPCA2', 'bPCA3', 'mPCA1', 'mPCA2', 'mPCA3',
+       'mPCA4', 'mPCA5', 'mPCA6', 'pPCA1', 'pPCA2', 'pPCA3', 'pPCA4', 'pPCA5',
+       'pPCA6', 'trials']

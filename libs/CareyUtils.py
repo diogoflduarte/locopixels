@@ -17,6 +17,7 @@ from tqdm import tqdm
 import cProfile
 import pstats
 from io import StringIO
+from pykalman import KalmanFilter
 try:
     import cupy
     import cupyx.scipy.ndimage
@@ -599,6 +600,48 @@ def find_string_in_list(my_list, text):
     matching_elements = [element for element, idx in elements_containing_apple]
     matching_indices = [idx for element, idx in elements_containing_apple]
     return matching_elements, matching_indices
+
+
+def kalman_smooth(signal, dt=1/432, tCov=0.01, obsCov=1.0):
+    """
+    Apply Kalman smoothing to a single coordinate signal with occlusions and artifacts.
+
+    Parameters:
+    - coordinate_signal: A (T,) array where T is the number of time points for a single coordinate (e.g., x, y, or z).
+    - dt: Time step between observations. Default is 1/432 for 432Hz sampling rate.
+
+    Returns:
+    - smoothed_coordinate: A (T,) array of the smoothed signal for the single coordinate.
+    """
+    # Define the state transition matrix for constant velocity model
+    transition_matrix = [[1, dt], [0, 1]]
+    # Define the observation matrix
+    observation_matrix = [[1, 0]]
+
+    # Define the transition covariance (process noise)
+    transition_covariance = tCov * np.eye(2)
+    # Define the observation covariance (measurement noise)
+    observation_covariance = obsCov
+
+    # Initial state mean and covariance
+    initial_state_mean = [signal[0], 0]
+    initial_state_covariance = 1.0 * np.eye(2)
+
+    # Initialize the KalmanFilter
+    kf = KalmanFilter(
+        transition_matrices=transition_matrix,
+        observation_matrices=observation_matrix,
+        transition_covariance=transition_covariance,
+        observation_covariance=observation_covariance,
+        initial_state_mean=initial_state_mean,
+        initial_state_covariance=initial_state_covariance
+    )
+
+    # Fit and smooth the data
+    smoothed_state_means, _ = kf.smooth(signal)
+
+    # Return the smoothed position (first state component)
+    return smoothed_state_means[:, 0], kf
 
 class phase():
     def subtract(a, b):
