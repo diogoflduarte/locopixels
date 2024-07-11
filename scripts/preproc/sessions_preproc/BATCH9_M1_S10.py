@@ -27,7 +27,7 @@ elif platform.platform().__contains__('Darwin'):
 else:
     base_path = '/home/diogo/megands1/data/2022/BATCH9'
 
-nibin_path = os.path.join(base_path, 'wheel_enc')
+nibin_path = os.path.join(base_path, 'recordings')
 apbin_path = os.path.join(base_path, 'recordings')
 mouse_list = ['VIV_27537']
 session_list = ['S10']
@@ -42,15 +42,12 @@ prefix = basename + '_'
 VIV_27537_S10 = CareyLib.NeuropixelsExperiment()
 VIV_27537_S10.mouse = mouse
 VIV_27537_S10.session = session
-VIV_27537_S10.nidq_bin = os.path.join(nibin_path, mouse, session,
-                                      'VIV_27537_S10_g0_t0.nidq.bin')
-VIV_27537_S10.nidq_meta = os.path.join(nibin_path, mouse, session,
-                                       'VIV_27537_S10_g0_t0.nidq.meta')
+VIV_27537_S10.nidq_bin = os.path.join(nibin_path, mouse, 'VIV_27537_S10_g0', 'VIV_27537_S10_g0_t0.nidq.bin')
+VIV_27537_S10.nidq_meta = os.path.join(nibin_path, mouse, session, 'VIV_27537_S10_g0_t0.nidq.meta')
 VIV_27537_S10.npx_apbin = os.path.join(apbin_path, mouse,
                                        'VIV_27537_S10_g0', 'VIV_27537_S10_g0_imec0', 'VIV_27537_S10_g0_t0.imec0.ap.bin')
 VIV_27537_S10.npx_apmeta = os.path.join(apbin_path, mouse,
-                                        'VIV_27537_S10_g0', 'VIV_27537_S10_g0_imec0',
-                                        'VIV_27537_S10_g0_t0.imec0.ap.meta')
+                                        'VIV_27537_S10_g0', 'VIV_27537_S10_g0_imec0', 'VIV_27537_S10_g0_t0.imec0.ap.meta')
 VIV_27537_S10.behavior_videos = os.path.join(base_path, 'behavior', mouse, session)
 VIV_27537_S10.processing_dir = os.path.join(base_path, 'processing', mouse, session)
 if not os.path.exists(VIV_27537_S10.processing_dir):
@@ -67,24 +64,31 @@ FILES_NEED_RENAMING = False
 if FILES_NEED_RENAMING:
     CareyFileProcessing.standardizeBonsaiVideoFileNames(VIV_27537_S10.behavior_videos,
                                                         extensions=['.avi', '.csv'], mouse_name='VIV_27537',
-                                                        session='S1', delete=True, log=True, dryrun=True)
+                                                        session='S10', delete=True, log=True, dryrun=True)
 
 ## B2) Track with DLC
 # DONE OUTSIDE
 
 
 ## NB1)  load syncpulse from the nibin file and save to a numpy file
-if not os.path.exists(os.path.join(VIV_27537_S10.processing_dir, 'VIV_27537_S10_apbin_sync.npy')): # TODO THIS IS WRONG
-    print('Extracting sync pulse from nibin files...')
-    VIV_27537_S10.extractSyncronizationStreams(extract_npx=1, extract_nidq=1, extract_behav_videos=1, sortby='trial') # todo: try this out with npyx
-    print('Done')
-else:
-    print('Nibin sync extraction file found')
-
+extract_npx             = 0
+extract_nidq            = 0
+extract_behav_videos    = 0
+if not os.path.exists(os.path.join(VIV_27537_S10.processing_dir, 'VIV_27537_S10_apbin_sync.npy')):
+    extract_npx     = 1
+if not os.path.exists(os.path.join(VIV_27537_S10.processing_dir, 'VIV_27537_S10_nidq_sync.npy')):
+    extract_nidq    = 1
+if not os.path.exists(os.path.join(VIV_27537_S10.processing_dir, 'VIV_27537_S10_behavior_metadata.csv')):
+    extract_behav_videos = 1
+VIV_27537_S10.extractSyncronizationStreams( extract_npx=extract_npx,
+                                            extract_nidq=extract_nidq,
+                                            extract_behav_videos=extract_behav_videos, sortby='trial')
+print('Done')
 
 ## NB2) extract camera metadata into sessionwise file
-if not os.path.exists(os.path.join(VIV_27537_S10.processing_dir, 'VIV_27537_S1_behavior_metadata.h5')):
+if not os.path.exists(os.path.join(VIV_27537_S10.processing_dir, 'VIV_27537_S1_behavior_metadata.csv')):
     CareyLib.NeuropixelsExperiment.compileSessionwiseMetadataBehavior(
         VIV_27537_S10.behavior_videos,
-        save_to_file=os.path.join(VIV_27537_S10.processing_dir, 'VIV_27537_S1_behavior_metadata.h5'),
+        save_to_file=os.path.join(VIV_27537_S10.processing_dir, 'VIV_27537_S10_behavior_metadata.csv'),
         verbose=False)
+
