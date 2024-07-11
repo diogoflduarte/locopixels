@@ -511,7 +511,7 @@ class CareyNPXReader:
         idx=slice(-23,-4)
 
         if sortby == 'time':
-            for fileidx, file in enumerate(file_list):
+            for fileidx, file in enumerate(tqdm(file_list)):
                 dt = datetime.datetime.strptime(file[idx], formatString)
                 file_datetimes_unsorted.append(dt)
 
@@ -524,7 +524,7 @@ class CareyNPXReader:
 
         elif sortby == 'trial':
             trial_list = []
-            for fileidx, file in enumerate(file_list):
+            for fileidx, file in enumerate(tqdm(file_list)):
                 trial = int(file_list[fileidx].split('_')[-1][0:-4])
                 trial_list.append(trial)
 
@@ -536,7 +536,7 @@ class CareyNPXReader:
         # determine the number of columns from a sample csv
 
         # iterate through files
-        for fileidx, file in enumerate(file_list):
+        for fileidx, file in enumerate(tqdm(file_list)):
             # assuming the 3 column weird thing I had:
             if fileidx==0:
                 this_trial = pd.read_csv(os.path.join(videosdir, file),
@@ -995,8 +995,7 @@ class NeuropixelsExperiment:
 
         # next is the nidq
         if extract_nidq:
-            print('Extracting sync channel from ni daq data stream at:')
-            print(self.npx_apbin)
+            print(f'Extracting sync channel from ni daq data stream at: {self.nidq_bin}')
             CareyNPXReader.extractSyncChannel(os.path.split(self.nidq_bin)[0],
                                               save_to_file=os.path.join(self.processing_dir, prefix + 'nidq_sync.npy'),
                                               device='nidq')
@@ -1009,7 +1008,7 @@ class NeuropixelsExperiment:
             CareyNPXReader.extractSyncFromCameras(self.behavior_videos,
                                             save_to_file=os.path.join(self.processing_dir,
                                                                       prefix + 'behavior_metadata.csv'),
-                                            fileext='.csv', sync=2, framerate=430, sortby=sortby)
+                                            fileext='.csv', sync=2, framerate=432, sortby=sortby)
             print('Done extracting metadata and sync from behavioral videos')
 
     def validateFiles(self):
@@ -1274,7 +1273,7 @@ class NeuropixelsExperiment:
             if verbose:
                 print('Done.')
 
-        print(f'{fileidx} behavioral trial files found in this session')
+        print(f'{fileidx+1} behavioral trial files found in this session')
 
         # save to file
         if isinstance(save_to_file, str):
