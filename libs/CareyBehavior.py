@@ -9,6 +9,8 @@ import scipy.signal
 import SwSt_Det_SlopeThres
 import cupy
 import scipy.linalg
+from numpy import ma
+import CareyUtils
 
 def plot_tracks_from_file(file_from_DLC, coord='x', fps=430, filter=None, filtwidth=3):
 
@@ -150,3 +152,26 @@ def anchored_relative_dist(A, B, anchor=0):
     disparity = np.sum((np.square(A - B)))
 
     return B, dist
+def kalman_smooth_low_confidence_tracks(tracks_df, bodypart, dt=1/432, confThresh=0.005, tCov=1.0, obsCov=1.0):
+    '''
+
+    :param tracks_df:
+    :param bodypart:
+    :param dt:
+    :param confThresh:
+    :param tCov:
+    :param obsCov:
+    :return:
+    '''
+    badpoints   = tracks_df[bodypart]['likelihood'] < np.quantile(tracks_df[bodypart]['likelihood'], 0.005)
+
+    signal_x      = tracks_df[bodypart]['x']
+    signal_y      = tracks_df[bodypart]['y']
+
+    masked_x = ma.asarray(signal_x)
+    masked_y = ma.asarray(signal_y)
+
+    ks_x, __ = CareyUtils.kalman_smooth(masked_x, dt=1 / 432, tCov=tCov, obsCov=obsCov)
+    ks_y, __ = CareyUtils.kalman_smooth(masked_y, dt=1 / 432, tCov=tCov, obsCov=obsCov)
+
+    return ks_x, ks_y

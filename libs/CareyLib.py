@@ -494,7 +494,7 @@ class CareyNPXReader:
 
         return sync_ch
 
-    def extractSyncFromCameras(videosdir, save_to_file=0, fileext='.csv', sync=2, framerate=430, sortby='trial'):
+    def extractSyncFromCameras(videosdir, save_to_file=0, fileext='.csv', sync=2, framerate=432, sortby='trial'):
         # file={.csv, .avi}, avi not implemented
         # idx = 1, this is the frame index from column 1 (idx = 2-1=1 a la python)
         # sync= 2, this is the index for the sync pulse (idx = 3-1=2 a la python)
@@ -583,7 +583,7 @@ class CareyNPXReader:
             this_trial_metadata['1'] = this_trial[1]
             this_trial_metadata['2'] = this_trial[2]
 
-            metadata_session = metadata_session.append(this_trial_metadata)
+            metadata_session = metadata_session.append(this_trial_metadata, ignore_index=True)
 
 
         # save to file
@@ -945,8 +945,10 @@ class RotaryEncoder:
 
     def getSpeedAndDistance_fromFile(nibin, ENC1_CH=1, ENC2_CH=2, TICKS_PER_REV=88, WHEEL_DIAM=0.25, KERN_PTS=1501):
         # get dt from file
+        print('Reading nibin file (takes a couple minutes...)')
         nibin_reader = ibllib.io.spikeglx.Reader(nibin)
         digital_sigs = nibin_reader.read_sync_digital(slice(0, nibin_reader.ns))
+        print('Estimating speed from auxiliary inputs to NI')
 
         encoder1 = digital_sigs[:, ENC1_CH]
         encoder2 = digital_sigs[:, ENC2_CH]
@@ -1033,6 +1035,8 @@ class NeuropixelsExperiment:
         pulses_npx, __ = CareyUtils.getRisingLoweringEdges(npx_sync_ch)
         pulses_nidq, __ = CareyUtils.getRisingLoweringEdges(nidq_sync_ch)
 
+        print(f'Found {pulses_npx.size} pulses for neuropixels and {pulses_nidq.size} pulses for NI DAQ')
+
         # get timing of pulses
         pulse_timing_npx = ap_time_array[pulses_npx.astype(int)]
         pulse_timing_nidq = nidq_time_array[pulses_nidq.astype(int)]
@@ -1059,9 +1063,12 @@ class NeuropixelsExperiment:
             print('corrected \t m = %f, b = %f' % (timing_model_corrected.coef_, timing_model_corrected.intercept_))
 
         # save corrected time arrays in a file
+        print(f'Saving npx time array in {os.path.join(self.processing_dir, prefix + "apbin_time_array.npy")}')
         np.save(os.path.join(self.processing_dir, prefix + 'apbin_time_array.npy'), ap_time_array)
-        np.save(os.path.join(self.processing_dir, prefix + 'nidq_time_array.npy'), nidq_time_array)
-        np.save(os.path.join(self.processing_dir, prefix + 'nidq_time_array_corrected.npy'), nidq_time_array_corrected)
+        print(f'Saving corrected ni daq time array in {os.path.join(self.processing_dir, prefix + "apbin_time_array.npy")}')
+        np.save(os.path.join(self.processing_dir, prefix + 'nidq_time_array.npy'), nidq_time_array_corrected)
+
+        return nidq_time_array_corrected, ap_time_array
 
     def correctCameraTime(self, behavior_metadata_file, syncpulse_file, align_to='npx',
                           outputfile='default'):
@@ -1096,7 +1103,7 @@ class NeuropixelsExperiment:
         # before reading the data structure fetch the number of pulses per trial to get the integrity of the each
         # video file
         n_pulses_behav = []
-        for ii in range(n_trials):
+        for ii in tqdm(range(n_trials)):
             pulses_this_video = CareyUtils.getRisingLoweringEdges(
                 camera_metadata[camera_metadata['trial']==ii+1]['syncpulse'].values)[0]
             if pulses_this_video is None:
@@ -1107,9 +1114,17 @@ class NeuropixelsExperiment:
         # boolean array with the trials that should be kept.
         # Assumptions: modal value fo pulses is the correct one (there should be more uncorrupted than corrupted values)
         intact_trials = n_pulses_behav==scipy.stats.mode(n_pulses_behav)[0][0]
+        if np.any(~intact_trials):
+            raise ValueError('Non intact trials found')
+        else:
+            print('All trials have consistent number of pulses.')
+
+        slopes      = []
+        intercepts  = []
 
         # trial by trial
-        for ii in range(n_trials):
+        print('Estimating temporal correction per trial')
+        for ii in tqdm(range(n_trials)):
             # get te pulse signal for the camera in this trial
             this_trial = camera_metadata[camera_metadata['trial']==ii+1]
             cam_sync_this_trial = this_trial['syncpulse'].values
@@ -1127,6 +1142,10 @@ class NeuropixelsExperiment:
                 timing_model = LinearRegression()
                 timing_model.fit(timepoints_camera[:,None], timepoints_reference)
                 # apply the correction
+
+                slopes.append(timing_model.coef_[0])
+                intercepts.append(timing_model.intercept_)
+
                 sessionwise_time_corrected = this_trial['trialwise_time'].values*timing_model.coef_[0] + timing_model.intercept_
                 # the abve line needs to include the time of first...
                 trialwise_time_corrected = sessionwise_time_corrected - sessionwise_time_corrected[0] # setting the first
@@ -1162,6 +1181,8 @@ class NeuropixelsExperiment:
             outputfile = os.path.join(self.processing_dir, prefix + 'behavior_metadata_corrected.csv')
         camera_metadata_corrected.to_csv(outputfile)
 
+        return slopes, intercepts
+
     def segmentTrialsFromSyncSignal(syncpulse, thresh=2):
         """finds the beggining and enfding of each sync pulse by trial
         returns: start_indices:
@@ -1178,7 +1199,7 @@ class NeuropixelsExperiment:
         inter_trial = np.where( intervals > (inter_pulse_interval * thresh) )[0]
 
         num_trials = inter_trial.shape[0] + 1
-        print(f'Found {num_trials} trials.')
+        print(f'Found {num_trials} trials on the synchronizer pulse in the neuropixels stream.')
 
         start_indices   = np.zeros((num_trials))
         end_indices     = np.zeros((num_trials)) # still rising edges!
@@ -1312,7 +1333,8 @@ class NeuropixelsExperiment:
 
         return file_list[0]
 
-    def compileSessionwiseTracks(self, tracksdir, match='shuffle1', ext='h5', mouse_name=True, verbose=True, sortby='trial', qthresh=0.05):
+    def compileSessionwiseTracks(self, tracksdir, match='shuffle1', ext='h5', mouse_name=True, verbose=True,
+                                 sortby='trial', dt=1/432, qthresh=0.005, tCov=1.0, obsCov=1.0):
         """
         compileSessionwiseTracks compiles DLC tracks into a file with all tracks for the whole session
         :param match:
@@ -1320,6 +1342,23 @@ class NeuropixelsExperiment:
         :param mouse_name indicates whether theres an underscore in the mouse name or not
         :return:
         """
+
+        track_mapping = {   'FRx': ('FR_bottom', 'x', 'y'),
+                            'FRy': ('FR_bottom', 'y', 'x'),
+                            'FRz': ('FR_side', 'y', '__'),
+                            'FLx': ('FL_bottom', 'x', 'y'),
+                            'FLy': ('FL_bottom', 'y', 'x'),
+                            'FLz': ('FL_side', 'y', '__'),
+                            'HLx': ('HL_bottom', 'x', 'y'),
+                            'HLy': ('HL_bottom', 'y', 'x'),
+                            'HLz': ('HL_side', 'y', '__'),
+                            'Tail1x': ('tail_bottom_1', 'x', 'y'),
+                            'Tail1y': ('tail_bottom_1', 'y', 'x'),
+                            'Tail1z': ('tail_side_1', 'y', '__'),
+                            'Tail2x': ('tail_bottom_2', 'x', 'y'),
+                            'Tail2y': ('tail_bottom_2', 'y', 'x'),
+                            'Tail2z': ('tail_side_2', 'y', '__')}
+
         file_list = []
         for file in os.listdir(tracksdir):
             if file.__contains__(match) and file.endswith(ext):
@@ -1330,22 +1369,13 @@ class NeuropixelsExperiment:
         sorted_list, __, __ = CareyFileProcessing.sortFilesByTrial(file_list, standard='NPXRIG_DLC',
                                              name_contains_underscore=mouse_name)
 
-        # build dataframe, read files one by one, append actually readable paw coords (simple)
-        # df = pd.read_hdf(os.path.join(tracksdir, sorted_list[0]))
-        # columns: mouse, session, trial, frame, FRx, FRy, FRz, HRx, HRy, HRz, ..., tail etc
-        # df[df.columns[0][0]].columns
-
         columns = ['trial', 'frame',
                    'FRx', 'FRy', 'FRz', 'HRx', 'HRy', 'HRz', 'FLx', 'FLy', 'FLz', 'HLx', 'HLy', 'HLz',
                    'Tail1x', 'Tail1y', 'Tail1z', 'Tail2x', 'Tail2y', 'Tail2z']
 
         df = pd.DataFrame(data=None, columns=columns)
-
-
-        for fileidx, file in enumerate(sorted_list):
-            if verbose:
-                print(f'Compiling tracks file {fileidx+1} / {len(sorted_list)}')
-
+        print('Compiling tracks from DLC files')
+        for fileidx, file in enumerate(tqdm(sorted_list)):
             file_props, __, __ = CareyFileProcessing.getFileProps(
                                         os.path.join(tracksdir, file), standard='NPXRIG_DLC',
                                         name_contains_underscore=mouse_name)
@@ -1355,24 +1385,16 @@ class NeuropixelsExperiment:
             this_trial = pd.DataFrame(data=None, columns=columns)
             this_trial['trial']     = np.ones(n_frames, int) * file_props['trial']
             this_trial['frame']     = np.arange(n_frames)
-            this_trial['FRx'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['FR_bottom']['x'], these_tracks['FR_bottom']['likelihood'], qthresh).values.astype('float32')
-            this_trial['FRy'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['FR_bottom']['y'], these_tracks['FR_bottom']['likelihood'], qthresh).values.astype('float32')
-            this_trial['FRz'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['FR_side']['y'], these_tracks['FR_side']['likelihood'], qthresh).values.astype('float32')
-            this_trial['HRx'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['HR_bottom']['x'], these_tracks['HR_bottom']['likelihood'], qthresh).values.astype('float32')
-            this_trial['HRy'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['HR_bottom']['y'], these_tracks['HR_bottom']['likelihood'], qthresh).values.astype('float32')
-            this_trial['HRz'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['HR_side']['y'], these_tracks['HR_side']['likelihood'], qthresh).values.astype('float32')
-            this_trial['FLx'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['FL_bottom']['x'], these_tracks['FL_bottom']['likelihood'], qthresh).values.astype('float32')
-            this_trial['FLy'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['FL_bottom']['y'], these_tracks['FL_bottom']['likelihood'], qthresh).values.astype('float32')
-            this_trial['FLz'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['FL_side']['y'], these_tracks['FL_side']['likelihood'], qthresh).values.astype('float32')
-            this_trial['HLx'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['HL_bottom']['x'], these_tracks['HL_bottom']['likelihood'], qthresh).values.astype('float32')
-            this_trial['HLy'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['HL_bottom']['y'], these_tracks['HL_bottom']['likelihood'], qthresh).values.astype('float32')
-            this_trial['HLz'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['HL_side']['y'], these_tracks['HL_side']['likelihood'], qthresh).values.astype('float32')
-            this_trial['Tail1x'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['tail_bottom_1']['x'], these_tracks['tail_bottom_1']['likelihood'], qthresh).values.astype('float32')
-            this_trial['Tail1y'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['tail_bottom_1']['y'], these_tracks['tail_bottom_1']['likelihood'], qthresh).values.astype('float32')
-            this_trial['Tail1z'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['tail_side_1']['y'], these_tracks['tail_side_1']['likelihood'], qthresh).values.astype('float32')
-            this_trial['Tail2x'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['tail_bottom_2']['x'], these_tracks['tail_bottom_2']['likelihood'], qthresh).values.astype('float32')
-            this_trial['Tail2y'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['tail_bottom_2']['y'], these_tracks['tail_bottom_2']['likelihood'], qthresh).values.astype('float32')
-            this_trial['Tail2z'] = NeuropixelsExperiment.interpolateLowConfidenceTracks(these_tracks['tail_side_2']['y'], these_tracks['tail_side_2']['likelihood'], qthresh).values.astype('float32')
+
+            for trial_key, (track_key, coord, alt_coord) in track_mapping.items():
+                if coord == 'x':
+                    this_trial[trial_key], this_trial[trial_key[:-1]+'y'] = \
+                        CareyBehavior.kalman_smooth_low_confidence_tracks(these_tracks, track_key, dt=dt,
+                                                                          confThresh=qthresh, tCov=tCov, obsCov=obsCov)
+                if track_key.endswith('bottom'):
+                    __, this_trial[trial_key] = CareyBehavior.kalman_smooth_low_confidence_tracks(
+                        these_tracks, track_key, dt=dt, confThresh=qthresh, tCov=tCov, obsCov=obsCov)
+
             this_trial['tracksfile'] = file
 
             df = df.append(this_trial, ignore_index=True)
@@ -1381,7 +1403,7 @@ class NeuropixelsExperiment:
         if verbose:
             print(f'Writing tracks to {csvfilename}')
 
-        df.to_csv(os.path.join(self.processing_dir, csvfilename))
+        df.to_csv(os.path.join(self.processing_dir, csvfilename)) # todo: compile all the tracks and likelihood, then smooth sessionwise. otherwise kalman filter instantiation takes too long
         return df
 
     def runSwingStanceDetection(tracksdir, outputfolder, ext='h5', match='shuffle1', naming_convention='NPXRIG_DLC',
@@ -1613,7 +1635,19 @@ class NeuropixelsExperiment:
         ps_position = ps_position.interpolate(method='polynomial', order=3)
         return ps_position
 
-    def compile_wheel_speed(self, outfile=None):
+    def compile_wheel_speed(self, nidq_corrected_time=None, outfile=None):
+
+        if nidq_corrected_time is None:
+            print('Reading NI DAQ time from default location')
+            nidq_corrected_time = os.path.join(self.processing_dir, self.mouse + '_' + self.session + '_nidq_time_array.npy')
+            time_array = np.load(nidq_corrected_time)
+        else:
+            if isinstance(nidq_corrected_time, str):
+                print(f'Reading NI DAQ time from {nidq_corrected_time}')
+                time_array = np.load(nidq_corrected_time)
+            elif isinstance(time_array, np.ndarray):
+                print(f'Parsing NI DAQ time from numerical input')
+                time_array = nidq_corrected_time
 
         nimeta =    [x for x in os.listdir(os.path.join(self.npx_apmeta, '..', '..')) if x[-9:] == 'nidq.meta'][0]
         nibin =     [x for x in os.listdir(os.path.join(self.npx_apmeta, '..', '..')) if x[-8:] == 'nidq.bin'][0]
@@ -1622,26 +1656,28 @@ class NeuropixelsExperiment:
         metadata = ibllib.io.spikeglx.read_meta_data(nimeta)
 
         DT = 1 / metadata['niSampRate']
-        __, dist, tim = CareyLib.RotaryEncoder.getSpeedAndDistance_fromFile(nibin)
+        speed, dist, _ = CareyLib.RotaryEncoder.getSpeedAndDistance_fromFile(nibin)
 
         # downsample
-        session_time = dist.shape[0] * DT
         ds_rate = 1000  # Hz
-        time_array_downsample = np.arange(0, dist.shape[0] * DT, 1 / ds_rate)
+        time_array_downsample = np.arange(0, time_array[-1], 1 / ds_rate)
 
-        dist_downsample = np.interp(time_array_downsample, tim, dist)
+        dist_downsample = np.interp(time_array_downsample, time_array, dist)
+        speed_downsample= np.interp(time_array_downsample, time_array, speed)
 
         dist = dist_downsample
         tim = time_array_downsample
 
-        df = pd.DataFrame(data=None, columns=['mouse', 'session', 'time', 'distance'])
-        df['distance'] = dist
-        df['time']     = tim
+        df = pd.DataFrame(data=None, columns=['mouse', 'session', 'time', 'distance', 'speed'])
         df = df.assign(mouse=self.mouse)
         df = df.assign(session=self.session)
+        df['time']     = time_array_downsample
+        df['distance'] = dist_downsample
+        df['speed']    = speed_downsample
 
+        print(f'Saving wheel speed data to file {outfile}.')
         if outfile is not None:
-            df.to_hdf(outfile, key='data')
+            df.to_csv(outfile)
 
         return df
 
