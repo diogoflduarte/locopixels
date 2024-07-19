@@ -8,6 +8,7 @@ plotext.theme('clear')
 matplotlib.use('TkAgg')
 import CareyPlots
 import CareyLib
+import CareyBehavior
 import matplotlib.pyplot as plt
 import numpy as np
 import ibllib.io.spikeglx
@@ -18,9 +19,21 @@ import platform
 import CareyEphys
 import CareyFileProcessing
 import subprocess
+from tqdm import tqdm
 
+
+## ..............................   SETTING PREPROCESSING PARAMETERS ...................................................
 RUN_STRIDE_SEGMENTATION = True
-DO_SYNC = True # cameras only
+DO_SYNC                 = True # cameras only
+dt_bcam                 = 1/432
+confThresh              = 0.05
+tCov                    = 1.0
+obsCov                  = 1.0
+KALMAN_SMOOTH           = False
+extract_npx             = 0
+extract_nidq            = 0
+extract_behav_videos    = 0
+# ......................................................................................................................
 
 # PATH SETUP
 if platform.platform().__contains__('Windows'):
@@ -35,7 +48,7 @@ apbin_path = os.path.join(base_path, 'recordings')
 mouse_list = ['VIV_27537']
 session_list = ['S10']
 
-dt_bcam = 1/432
+
 
 mouse = mouse_list[0]
 session = session_list[0]
@@ -71,9 +84,6 @@ if FILES_NEED_RENAMING:
 ####################    SYNCHRONIZING DATA STREAMS #####################################################################
 
 # NB1)  load syncpulse from the nibin file and save to a numpy file
-extract_npx             = 0
-extract_nidq            = 0
-extract_behav_videos    = 0
 if not os.path.exists(os.path.join(experiment.processing_dir, basename + '_apbin_sync.npy')):
     extract_npx     = 1
 if not os.path.exists(os.path.join(experiment.processing_dir, basename + '_nidq_sync.npy')):
@@ -95,9 +105,10 @@ else:
 
 
 ## estimate wheel speed from encoders because we'll need it for the stride segmentation
-if not os.path.exists(os.path.join(experiment.processing_dir, basename + '_wheel.csv')):
+wheel_csv = os.path.join(experiment.processing_dir, basename + '_wheel.csv')
+if not os.path.exists(wheel_csv):
     print('Estimating wheel speed from rotary encoders...')
-    wheel_df = experiment.compile_wheel_speed(outfile=os.path.join(experiment.processing_dir, basename + '_wheel.csv'))
+    wheel_df = experiment.compile_wheel_speed(outfile=wheel_csv)
     print('Done')
 
 
@@ -115,9 +126,50 @@ if not os.path.exists(metadata_corrected):
 
 
 ## 4.1) add tracks
-if not os.path.exists(os.path.join(experiment.processing_dir, basename + '_DLC_tracks.csv')):
-    experiment.compileSessionwiseTracks(experiment.behavior_videos, match='shuffle1', ext='h5', mouse_name=True,
-                                        verbose=True, sortby='trial', qthresh=0.005, tCov=1.0, obsCov=1.0, dt=dt_bcam)
+tracks_file = os.path.join(experiment.processing_dir, basename + '_DLC_tracks.csv')
+tracks_df = experiment.compileSessionwiseTracks(experiment.behavior_videos, match='shuffle1', ext='h5', mouse_name=True)
+tracks_df.to_csv(tracks_file)
 
-    shutil.copyfile(os.path.join(experiment.processing_dir, 'VIV_23058_S10_DLC_tracks.csv'),
-                    os.path.join(experiment.processing_dir, (mouse + '_' + session + '_behavioral_descriptor.csv')))
+## Optional: smooth based on likelihoods
+if KALMAN_SMOOTH:
+    featmap = [['FRx', 'FR_b_lik'], ['FRy', 'FR_b_lik'], ['FRz', 'FR_s_lik'],
+               ['HRx', 'HR_b_lik'], ['HRy', 'HR_b_lik'], ['HRz', 'HR_s_lik'],
+               ['FLx', 'FL_b_lik'], ['FLy', 'FL_b_lik'], ['FLz', 'FL_s_lik'],
+               ['HLx', 'HL_b_lik'], ['HLy', 'HL_b_lik'], ['HLz', 'HL_s_lik'],
+               ['Tail1x', 'Tail1_b_lik'], ['Tail1y', 'Tail1_b_lik'], ['Tail1z', 'Tail1_s_lik'],
+               ['Tail2x', 'Tail2_b_lik'], ['Tail2y', 'Tail2_b_lik'], ['Tail2z', 'Tail2_s_lik']]
+    print('Kalman smoothing features...')
+
+
+    # feat = featmap[9]
+    # thresh = np.quantile(tracks_df[feat[1]], 0.05)
+    # tracks_df['threshold_met'] = np.where(tracks_df[feat[1]] >= thresh, 1, 0)
+    # df_toplot = tracks_df[tracks_df['trial']==1]
+    # # sns.scatterplot(data=df_toplot, x='frame', y=feat[0], hue='FRx')
+    # CareyPlots.multicoloredline_2d(df_toplot, 'frame', feat[0], 'threshold_met', cmap='PiYG', lw=2)
+
+    groups = tracks_df.groupby('trial')
+    for trial, group in tqdm(groups):
+        for ii, fm in enumerate(featmap):
+            thresh = np.quantile(tracks_df[fm[1]], confThresh)
+            tracks_df.loc[group.index, fm[0]] = \
+                    CareyBehavior.kalman_smooth_low_confidence_tracks(
+                        tracks_df.loc[group.index], fm[0], fm[1], dt=dt_bcam, confThresh=thresh, tCov=tCov,
+                        obsCov=obsCov)
+    kalman_smoothed_tracks_file = tracks_file = os.path.join(experiment.processing_dir, basename + '_DLC_tracks_smoothed.csv')
+    tracks_df.to_csv(os.path.join(tracks_file))
+
+## ADD CAMERA METADATA TO TRACKS FILE. THIS IS NOT OPTIONAL
+df_metadata = pd.read_csv(metadata_corrected)
+df_tracks   = pd.read_csv(tracks_file)
+df = CareyLib.NeuropixelsExperiment.addTracksToMetadata(df_metadata, df_tracks)
+
+## ADD WHEEL DISTANCE AND SPEED
+wheel_df = pd.read_csv(wheel_csv)
+df = CareyLib.NeuropixelsExperiment.addWheelDistanceAndSpeed(df,    wheel_df['speed'].values,
+                                                                    wheel_df['distance'].values,
+                                                                    wheel_df['time'])
+tracks_df.to_csv(os.path.join(experiment.processing_dir, basename + '_behavioral_descriptor.csv'))
+
+## TODO: re-run stride segmentation
+

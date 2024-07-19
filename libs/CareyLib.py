@@ -1343,22 +1343,6 @@ class NeuropixelsExperiment:
         :return:
         """
 
-        track_mapping = {   'FRx': ('FR_bottom', 'x', 'y'),
-                            'FRy': ('FR_bottom', 'y', 'x'),
-                            'FRz': ('FR_side', 'y', '__'),
-                            'FLx': ('FL_bottom', 'x', 'y'),
-                            'FLy': ('FL_bottom', 'y', 'x'),
-                            'FLz': ('FL_side', 'y', '__'),
-                            'HLx': ('HL_bottom', 'x', 'y'),
-                            'HLy': ('HL_bottom', 'y', 'x'),
-                            'HLz': ('HL_side', 'y', '__'),
-                            'Tail1x': ('tail_bottom_1', 'x', 'y'),
-                            'Tail1y': ('tail_bottom_1', 'y', 'x'),
-                            'Tail1z': ('tail_side_1', 'y', '__'),
-                            'Tail2x': ('tail_bottom_2', 'x', 'y'),
-                            'Tail2y': ('tail_bottom_2', 'y', 'x'),
-                            'Tail2z': ('tail_side_2', 'y', '__')}
-
         file_list = []
         for file in os.listdir(tracksdir):
             if file.__contains__(match) and file.endswith(ext):
@@ -1385,25 +1369,51 @@ class NeuropixelsExperiment:
             this_trial = pd.DataFrame(data=None, columns=columns)
             this_trial['trial']     = np.ones(n_frames, int) * file_props['trial']
             this_trial['frame']     = np.arange(n_frames)
+            # this_trial['tracksfile']= file
+            this_trial['FRx']       = these_tracks['FR_bottom']['x'].values.astype('float32')
+            this_trial['FRy']       = these_tracks['FR_bottom']['y'].values.astype('float32')
+            this_trial['FRz']       = these_tracks['FR_side']['y'].values.astype('float32')
+            this_trial['FR_b_lik']  = these_tracks['FR_bottom']['likelihood'].values.astype('float32')
+            this_trial['FR_s_lik']  = these_tracks['FR_side']['likelihood'].values.astype('float32')
 
-            for trial_key, (track_key, coord, alt_coord) in track_mapping.items():
-                if coord == 'x':
-                    this_trial[trial_key], this_trial[trial_key[:-1]+'y'] = \
-                        CareyBehavior.kalman_smooth_low_confidence_tracks(these_tracks, track_key, dt=dt,
-                                                                          confThresh=qthresh, tCov=tCov, obsCov=obsCov)
-                if track_key.endswith('bottom'):
-                    __, this_trial[trial_key] = CareyBehavior.kalman_smooth_low_confidence_tracks(
-                        these_tracks, track_key, dt=dt, confThresh=qthresh, tCov=tCov, obsCov=obsCov)
+            this_trial['HRx']       = these_tracks['HR_bottom']['x'].values.astype('float32')
+            this_trial['HRy']       = these_tracks['HR_bottom']['y'].values.astype('float32')
+            this_trial['HRz']       = these_tracks['HR_side']['y'].values.astype('float32')
+            this_trial['HR_b_lik']  = these_tracks['HR_bottom']['likelihood'].values.astype('float32')
+            this_trial['HR_s_lik']  = these_tracks['HR_side']['likelihood'].values.astype('float32')
 
-            this_trial['tracksfile'] = file
+            this_trial['FLx']       = these_tracks['FL_bottom']['x'].values.astype('float32')
+            this_trial['FLy']       = these_tracks['FL_bottom']['y'].values.astype('float32')
+            this_trial['FLz']       = these_tracks['FL_side']['y'].values.astype('float32')
+            this_trial['FL_b_lik']  = these_tracks['FL_bottom']['likelihood'].values.astype('float32')
+            this_trial['FL_s_lik']  = these_tracks['FL_side']['likelihood'].values.astype('float32')
+
+            this_trial['HLx']       = these_tracks['HL_bottom']['x'].values.astype('float32')
+            this_trial['HLy']       = these_tracks['HL_bottom']['y'].values.astype('float32')
+            this_trial['HLz']       = these_tracks['HL_side']['y'].values.astype('float32')
+            this_trial['HL_b_lik']  = these_tracks['HL_bottom']['likelihood'].values.astype('float32')
+            this_trial['HL_s_lik']  = these_tracks['HL_side']['likelihood'].values.astype('float32')
+
+            this_trial['Tail1x']        = these_tracks['tail_bottom_1']['x'].values.astype('float32')
+            this_trial['Tail1y']        = these_tracks['tail_bottom_1']['y'].values.astype('float32')
+            this_trial['Tail1z']        = these_tracks['tail_side_1']['y'].values.astype('float32')
+            this_trial['Tail1_b_lik']   = these_tracks['tail_bottom_1']['likelihood'].values.astype('float32')
+            this_trial['Tail1_s_lik']   = these_tracks['tail_side_1']['likelihood'].values.astype('float32')
+
+            this_trial['Tail2x']        = these_tracks['tail_bottom_2']['x'].values.astype('float32')
+            this_trial['Tail2y']        = these_tracks['tail_bottom_2']['y'].values.astype('float32')
+            this_trial['Tail2z']        = these_tracks['tail_side_2']['y'].values.astype('float32')
+            this_trial['Tail2_b_lik']   = these_tracks['tail_bottom_2']['likelihood'].values.astype('float32')
+            this_trial['Tail2_s_lik']   = these_tracks['tail_side_2']['likelihood'].values.astype('float32')
+
 
             df = df.append(this_trial, ignore_index=True)
 
-        csvfilename = file_props['mouse'] + '_' + file_props['session'] + '_DLC_tracks.csv'
-        if verbose:
-            print(f'Writing tracks to {csvfilename}')
+        # csvfilename = file_props['mouse'] + '_' + file_props['session'] + '_DLC_tracks.csv'
+        # if verbose:
+        #     print(f'Writing tracks to {csvfilename}')
 
-        df.to_csv(os.path.join(self.processing_dir, csvfilename)) # todo: compile all the tracks and likelihood, then smooth sessionwise. otherwise kalman filter instantiation takes too long
+        # df.to_csv(os.path.join(self.processing_dir, csvfilename)) # todo: compile all the tracks and likelihood, then smooth sessionwise. otherwise kalman filter instantiation takes too long
         return df
 
     def runSwingStanceDetection(tracksdir, outputfolder, ext='h5', match='shuffle1', naming_convention='NPXRIG_DLC',
@@ -1505,10 +1515,8 @@ class NeuropixelsExperiment:
         df = pd.DataFrame(data=None, columns=columns)
 
         alltrials = np.asarray(np.unique(df_metadata['trial'].values), 'int')
-        for trial in alltrials:
-
-            if verbose:
-                print('Appending tracks from trial ' + str(trial))
+        print('Compiling tracks and metadata into a single dataframe')
+        for trial in tqdm(alltrials):
 
             trial_metadata  = df_metadata[df_metadata['trial']==trial]
             trial_tracks    = df_tracks[df_tracks['trial']==trial]
@@ -1526,7 +1534,7 @@ class NeuropixelsExperiment:
                 this_trial['trial']             = trial_metadata['trial'][:n_trial_frames].astype('int')
                 this_trial['filename_avi']      = trial_metadata['filename_avi'][:n_trial_frames]
                 this_trial['filename_csv']      = trial_metadata['filename_csv'][:n_trial_frames]
-                this_trial['tracksfile']        = trial_tracks['tracksfile']
+                # this_trial['tracksfile']        = trial_tracks['tracksfile']
                 this_trial['frame']             = trial_metadata['frame_idx'][:n_trial_frames]
                 this_trial['trialwise_idx']     = trial_metadata['trialwise_idx'][:n_trial_frames]
                 this_trial['trialwise_time']    = trial_metadata['trialwise_time'][:n_trial_frames]

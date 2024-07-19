@@ -152,7 +152,7 @@ def anchored_relative_dist(A, B, anchor=0):
     disparity = np.sum((np.square(A - B)))
 
     return B, dist
-def kalman_smooth_low_confidence_tracks(tracks_df, bodypart, dt=1/432, confThresh=0.005, tCov=1.0, obsCov=1.0):
+def kalman_smooth_low_confidence_tracks_DLC(tracks_df, bodypart, dt=1/432, confThresh=0.005, tCov=1.0, obsCov=1.0):
     '''
 
     :param tracks_df:
@@ -171,7 +171,31 @@ def kalman_smooth_low_confidence_tracks(tracks_df, bodypart, dt=1/432, confThres
     masked_x = ma.asarray(signal_x)
     masked_y = ma.asarray(signal_y)
 
-    ks_x, __ = CareyUtils.kalman_smooth(masked_x, dt=1 / 432, tCov=tCov, obsCov=obsCov)
-    ks_y, __ = CareyUtils.kalman_smooth(masked_y, dt=1 / 432, tCov=tCov, obsCov=obsCov)
+    masked_x[badpoints.values] = ma.masked
+    masked_y[badpoints.values] = ma.masked
+
+    ks_x, __ = CareyUtils.kalman_smooth(masked_x, dt=dt, tCov=tCov, obsCov=obsCov)
+    ks_y, __ = CareyUtils.kalman_smooth(masked_y, dt=dt, tCov=tCov, obsCov=obsCov)
 
     return ks_x, ks_y
+def kalman_smooth_low_confidence_tracks(tracks_df, bodypart, lik_col, dt=1/432, confThresh=0.005, tCov=1.0, obsCov=1.0):
+    '''
+
+    :param tracks_df:
+    :param bodypart:
+    :param dt:
+    :param confThresh:
+    :param tCov:
+    :param obsCov:
+    :return:
+    '''
+    badpoints   = tracks_df[lik_col] < confThresh
+
+    signal      = tracks_df[bodypart].values
+    masked      = ma.asarray(signal)
+
+    masked[badpoints.values] = ma.masked
+
+    ks, __ = CareyUtils.kalman_smooth(masked, dt=dt, tCov=tCov, obsCov=obsCov)
+
+    return ks
