@@ -30,9 +30,9 @@ confThresh              = 0.05
 tCov                    = 1.0
 obsCov                  = 1.0
 KALMAN_SMOOTH           = False
-extract_npx             = 0
-extract_nidq            = 0
-extract_behav_videos    = 0
+extract_npx             = 0 #1
+extract_nidq            = 0 #1
+extract_behav_videos    = 0 #1
 # ......................................................................................................................
 
 # PATH SETUP
@@ -97,11 +97,12 @@ if not os.path.exists(os.path.join(experiment.processing_dir, basename + '_behav
 
 
 # generate corrected time file by synchronizing the ni_bin based on the ap_bin
-if os.path.exists(os.path.join(experiment.processing_dir, basename + '_nidq_time_array.npy')):
+if not os.path.exists(os.path.join(experiment.processing_dir, basename + '_nidq_time_array.npy')):
     nidq_time = np.load(os.path.join(experiment.processing_dir, basename + '_nidq_time_array.npy'))
     npx_time  = np.load(os.path.join(experiment.processing_dir, basename + '_apbin_time_array.npy'))
-else:
     nidq_time, npx_time = experiment.synchronizeDataStreams()
+else:
+    pass
 
 
 ## estimate wheel speed from encoders because we'll need it for the stride segmentation
@@ -127,11 +128,13 @@ if not os.path.exists(metadata_corrected):
 
 ## 4.1) add tracks
 tracks_file = os.path.join(experiment.processing_dir, basename + '_DLC_tracks.csv')
-tracks_df = experiment.compileSessionwiseTracks(experiment.behavior_videos, match='shuffle1', ext='h5', mouse_name=True)
-tracks_df.to_csv(tracks_file)
-
+if not os.path.exists(tracks_file):
+    tracks_df = experiment.compileSessionwiseTracks(experiment.behavior_videos, match='shuffle1', ext='h5', mouse_name=True)
+    tracks_df.to_csv(tracks_file)
+else:
+    tracks_df = pd.read_csv(tracks_file)
 ## Optional: smooth based on likelihoods
-if KALMAN_SMOOTH:
+if KALMAN_SMOOTH or 1: # todo: put back
     featmap = [['FRx', 'FR_b_lik'], ['FRy', 'FR_b_lik'], ['FRz', 'FR_s_lik'],
                ['HRx', 'HR_b_lik'], ['HRy', 'HR_b_lik'], ['HRz', 'HR_s_lik'],
                ['FLx', 'FL_b_lik'], ['FLy', 'FL_b_lik'], ['FLz', 'FL_s_lik'],
@@ -152,24 +155,33 @@ if KALMAN_SMOOTH:
     for trial, group in tqdm(groups):
         for ii, fm in enumerate(featmap):
             thresh = np.quantile(tracks_df[fm[1]], confThresh)
+            # thresh = np.quantile(tracks_df.loc[group.index][fm[1]], confThresh)
             tracks_df.loc[group.index, fm[0]] = \
                     CareyBehavior.kalman_smooth_low_confidence_tracks(
                         tracks_df.loc[group.index], fm[0], fm[1], dt=dt_bcam, confThresh=thresh, tCov=tCov,
                         obsCov=obsCov)
-    kalman_smoothed_tracks_file = tracks_file = os.path.join(experiment.processing_dir, basename + '_DLC_tracks_smoothed.csv')
-    tracks_df.to_csv(os.path.join(tracks_file))
+    kalman_smoothed_tracks_file = os.path.join(experiment.processing_dir, basename + '_DLC_tracks_smoothed.csv')
+    tracks_df.to_csv(kalman_smoothed_tracks_file)
 
 ## ADD CAMERA METADATA TO TRACKS FILE. THIS IS NOT OPTIONAL
-df_metadata = pd.read_csv(metadata_corrected)
-df_tracks   = pd.read_csv(tracks_file)
-df = CareyLib.NeuropixelsExperiment.addTracksToMetadata(df_metadata, df_tracks)
+behav_file = os.path.join(experiment.processing_dir, basename + '_behavioral_descriptor.csv')
+if not os.path.exists(behav_file):
+    df_metadata = pd.read_csv(metadata_corrected)
+    df_tracks   = pd.read_csv(kalman_smoothed_tracks_file)
+    df = CareyLib.NeuropixelsExperiment.addTracksToMetadata(df_metadata, df_tracks)
 
-## ADD WHEEL DISTANCE AND SPEED
-wheel_df = pd.read_csv(wheel_csv)
-df = CareyLib.NeuropixelsExperiment.addWheelDistanceAndSpeed(df,    wheel_df['speed'].values,
-                                                                    wheel_df['distance'].values,
-                                                                    wheel_df['time'])
-tracks_df.to_csv(os.path.join(experiment.processing_dir, basename + '_behavioral_descriptor.csv'))
+    ## ADD WHEEL DISTANCE AND SPEED
+    wheel_df = pd.read_csv(wheel_csv)
+    behav = CareyLib.NeuropixelsExperiment.addWheelDistanceAndSpeed(df, wheel_df['speed'].values,
+                                                                        wheel_df['distance'].values,
+                                                                        wheel_df['time'])
+    behav.to_csv(os.path.join(experiment.processing_dir, basename + '_behavioral_descriptor.csv'))
+else:
+    behav = pd.read_csv(behav_file)
 
 ## TODO: re-run stride segmentation
+print('Running siwng and stance detection')
 
+__ = CareyBehavior.swing_and_stance_from_dataframe(behav[behav.trial==43], Acq_Freq=None, SepVector=None, Belts_Dict=None,
+                 Speed_thr=0.05, CleanArtifs=True, FiltCutOff=60, Det_SwSt=True, SwSt_Outlier_Rej=False,
+                 Type_Experiment=0, graph=False, save=None, verbose=True)

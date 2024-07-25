@@ -624,7 +624,7 @@ def kalman_smooth(signal, dt=1/432, tCov=0.01, obsCov=1.0):
     observation_covariance = obsCov
 
     # Initial state mean and covariance
-    initial_state_mean = [signal[0], 0]
+    initial_state_mean = [np.ma.getdata(signal)[0], 0]
     initial_state_covariance = 1.0 * np.eye(2)
 
     # Initialize the KalmanFilter

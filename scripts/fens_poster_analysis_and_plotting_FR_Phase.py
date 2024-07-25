@@ -294,6 +294,8 @@ app = CareyPlots.twinplots(firing_rates_to_plot,            'bPCA1', 'bPCA2', 'b
 app = CareyPlots.twinplots(firing_rates_to_plot, 'mPCA1', 'mPCA2', 'mPCA3', 'pPCA1', 'pPCA2', 'pPCA3',
                                                             colorby='phase', pop='locomotor_cycle', linewidth=0,
                                                             opacity=0.3, show_grid=True, show_background=False, DEF_SIZE=1, POP_SIZE=20)
+
+breakpoint()
 # ##  MOSSY FIBERS VS normalized
 ## make manifold plots
 trials_to_plot = random.choices(np.unique(firing_rates_phase_sessionwise.locomotor_cycle), k=20)

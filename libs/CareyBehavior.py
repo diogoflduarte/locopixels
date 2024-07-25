@@ -11,6 +11,7 @@ import cupy
 import scipy.linalg
 from numpy import ma
 import CareyUtils
+from tqdm import tqdm
 
 def plot_tracks_from_file(file_from_DLC, coord='x', fps=430, filter=None, filtwidth=3):
 
@@ -79,6 +80,65 @@ def SwingAndStanceDetection(tracksfile, strides_filename, CleanArtifs=True, Filt
     if verbose:
         print('Done!')
         print(' ')
+def swing_and_stance_from_dataframe(behav, Acq_Freq=None, SepVector=None, Belts_Dict=None, Speed_thr=0.05,
+                 CleanArtifs=True, FiltCutOff=60, Det_SwSt=True, SwSt_Outlier_Rej=False, Type_Experiment=0,
+                 graph=False, save=None, verbose=False):
+
+    Acq_Freq = CareyConstants.DEF_BEHAV_FS if Acq_Freq is None else Acq_Freq
+    Belts_Dict = None
+    graph = False
+    verbose = False
+
+    behav['FR_SwOn'], behav['FR_StOn'], behav['HR_SwOn'], behav['HR_StOn'], behav['FL_SwOn'], \
+        behav['FL_StOn'], behav['HL_SwOn'], behav['HL_StOn'] = False, False, False, False, False, False, False, False
+
+
+
+    trial_array = np.unique(behav.trial)
+    for trial_idx, trial in enumerate(tqdm(trial_array)):
+
+        behav['FR_SwOn'], behav['FR_StOn'], behav['HR_SwOn'], behav['HR_StOn'], behav['FL_SwOn'], \
+        behav['FL_StOn'], behav['HL_SwOn'], behav['HL_StOn'] = False, False, False, False, False, False, False, False
+
+        Tracks_file_dict = {}
+        Belts_Dict = {}
+        this_trial_df = this_trial_df = behav[behav.trial == trial]
+
+        for paw in CareyConstants.paw_labels:
+            Tracks_file_dict[f'track_X_{paw}'] = this_trial_df[f'{paw}x'].values
+            Tracks_file_dict[f'track_Y_{paw}'] = this_trial_df[f'{paw}y'].values
+            Tracks_file_dict[f'track_Z_{paw}'] = this_trial_df[f'{paw}z'].values
+
+        Tracks_file_dict['TimeTracks'] = (this_trial_df['sessionwise_time']-this_trial_df['sessionwise_time'].min()).values
+
+        Acq_Freq = 1/np.median(np.diff(this_trial_df['trialwise_time']))
+
+        Belts_Dict["Speed Left"]  = this_trial_df['wheel_speed'].values
+        Belts_Dict["Speed Right"] = this_trial_df['wheel_speed'].values
+
+        evs = SwSt_Det_SlopeThres.Pocket_SwSt_Det(Tracks_file_dict, Acq_Freq=Acq_Freq, SepVector=SepVector,
+                                                  Belts_Dict=Belts_Dict, Speed_thr=Speed_thr, CleanArtifs=CleanArtifs,
+                                                  FiltCutOff=FiltCutOff, Det_SwSt=Det_SwSt, SwSt_Outlier_Rej=SwSt_Outlier_Rej,
+                                                  Type_Experiment=Type_Experiment, graph=graph, save=save, verbose=verbose)
+
+        trial_length = behav.loc[behav.trial==trial].shape[0]
+        for paw in CareyConstants.paw_labels:
+
+            if evs.Behav_Analysis_Dict[paw]['Swing Onset Accepted'] is not None:
+                SwOn_var = evs.Behav_Analysis_Dict[paw]['Swing Onset F val.'][
+                    evs.Behav_Analysis_Dict[paw]['Swing Onset Accepted']]
+                StOn_var = evs.Behav_Analysis_Dict[paw]['Stance Onset F val.'][
+                    evs.Behav_Analysis_Dict[paw]['Stance Onset Accepted']]
+                behav.loc[behav.trial == trial, f'{paw}_SwOn'] = np.isin(np.arange(trial_length), SwOn_var)
+                behav.loc[behav.trial == trial, f'{paw}_StOn'] = np.isin(np.arange(trial_length), StOn_var)
+            else:
+                SwOn_var = None
+                StOn_var = None
+
+            behav.loc[behav.trial == trial, f'{paw}_SwOn'] = np.isin(np.arange(trial_length), SwOn_var)
+            behav.loc[behav.trial == trial, f'{paw}_StOn'] = np.isin(np.arange(trial_length), StOn_var)
+
+    return behav
 
 def get_stride_phase_from_events(FR_SwOn, FR_StOn, usegpu=True): # fix input bug
     # todo: bugged
@@ -178,7 +238,7 @@ def kalman_smooth_low_confidence_tracks_DLC(tracks_df, bodypart, dt=1/432, confT
     ks_y, __ = CareyUtils.kalman_smooth(masked_y, dt=dt, tCov=tCov, obsCov=obsCov)
 
     return ks_x, ks_y
-def kalman_smooth_low_confidence_tracks(tracks_df, bodypart, lik_col, dt=1/432, confThresh=0.005, tCov=1.0, obsCov=1.0):
+def kalman_smooth_low_confidence_tracks(tracks_df, bodypart, lik_col, dt=1/432, confThresh=None, tCov=1.0, obsCov=1.0):
     '''
 
     :param tracks_df:
@@ -189,13 +249,27 @@ def kalman_smooth_low_confidence_tracks(tracks_df, bodypart, lik_col, dt=1/432, 
     :param obsCov:
     :return:
     '''
-    badpoints   = tracks_df[lik_col] < confThresh
 
+
+    confThresh = 0.75
     signal      = tracks_df[bodypart].values
+    badpoints   = tracks_df[lik_col].values < confThresh
+    badpoints[signal < np.quantile(signal, 0.01)] = True
+    badpoints[signal > np.quantile(signal, 0.99)] = True
     masked      = ma.asarray(signal)
+    masked[badpoints] = ma.masked
 
-    masked[badpoints.values] = ma.masked
+    plt.figure()
+    plt.plot(masked)
+    plt.plot(CareyUtils.kalman_smooth(masked, dt=dt, tCov=0.5, obsCov=obsCov)[0])
+    plt.show()
+
+    ##
 
     ks, __ = CareyUtils.kalman_smooth(masked, dt=dt, tCov=tCov, obsCov=obsCov)
 
+    ks = pd.Series(ks).interpolate().values
+
     return ks
+##
+
