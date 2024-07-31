@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib
 from matplotlib import pyplot as plt
 import matplotlib.animation as animation
 import seaborn as sns
@@ -27,6 +28,7 @@ import pandas as pd
 from pandas.core.common import SettingWithCopyWarning
 import warnings
 from matplotlib.animation import FuncAnimation
+from matplotlib.widgets import Button
 warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -806,3 +808,46 @@ def adjust_font_size(ax=plt.gca(), increment=0):
 #     return fig, ax
 # def dummyf():
 #     pass
+
+def animate_signal(signal, nframes=None, dt=100):
+    """
+    Animate a wrapped phase signal on a polar plot.
+
+    Parameters:
+    signal (np.ndarray): An array of phase values varying between 0 and 1.
+    """
+    # Set up the figure and the polar plot
+    fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
+    ax.set_ylim(0, 1.1)  # Set the limit for the radial coordinate
+
+    # Plot setup: initialize a point in the polar plot
+    point, = ax.plot([], [], 'ro')  # Red point
+
+    if nframes is None:
+        nframes = len(signal)
+
+    # Function to initialize the plot
+    def init():
+        point.set_data([], [])
+        return point,
+    def update(frame):
+        # Calculate the angle in radians (0 to 2*pi)
+        theta = 2 * np.pi * signal[frame]
+
+        # Set the new data for the point
+        point.set_data([theta], [1])  # Radius is constant at 1
+        return point,
+    def stop(event):
+        # ani._stop()
+        ani.event_source.stop()
+        plt.close(fig)
+    # Create the animation
+    ani = animation.FuncAnimation(fig, update, frames=nframes,
+                                  init_func=init, blit=True, interval=dt, repeat=False)
+    # Add a stop button
+    axstop = plt.axes([0.8, 0.01, 0.1, 0.075])
+    bstop = Button(axstop, 'Stop')
+    bstop.on_clicked(stop)
+    plt.show(block=True)
+
+    return ani
