@@ -1,5 +1,8 @@
-import numpy as np
 import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 os.chdir(r'C:\Users\User\Desktop\behavior_analysis')
 from util import findpeaks, interpolate, detrend
@@ -24,12 +27,6 @@ def get_cycles(principal_components, global_phase, sr, peak_threshold=6,
     # Compute cycle duration
     cycle_duration = np.diff(onset) * (1 / sr)
     return interp_cycles, cycles, cycle_duration, [onset, offset]
-
-import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 
 def process_tracking_data(tracking_data, threshold, interpolation_method='linear'):
     """
@@ -64,7 +61,7 @@ def compute_stride_phase(tracks, stride_events, phase_type='st-sw-st', sw_on_pha
       the start of the swing phase, and the end of the swing phase, respectively.
     - phase_type (str, optional): The type of stride phase calculation to perform. It can be 'st-sw-st' or 'st-st'. 
       - 'st-sw-st': Computes stride phase as a combination of stance and swing phases.
-      - 'st-st': Computes stride phase as a linear progression from stance to swing.
+      - 'st-st': Computes stride phase as a linear progression from stance to stance.
       Default is 'st-sw-st'.
     - sw_on_phase (float, optional): The phase value at which the swing phase starts. Default is 0.5.
     
@@ -93,7 +90,6 @@ def compute_stride_phase(tracks, stride_events, phase_type='st-sw-st', sw_on_pha
                 raise ValueError(f"Unrecognized phase_type: {phase_type}")
     
     return pd.DataFrame(stride_phase, columns=tracks.columns)
-
 
 def condition_on(data, threshold, min_duration, sampling_rate, operator='<'):
     """
@@ -147,7 +143,6 @@ def condition_on(data, threshold, min_duration, sampling_rate, operator='<'):
 
     return np.array(indices)
 
-
 def clip_strides(condition_met_indices, stride_boundaries):
     """
     Identifies indices of strides in which a given condition is met.
@@ -173,7 +168,6 @@ def clip_strides(condition_met_indices, stride_boundaries):
             invalid_indices.extend(stride_indices)
     
     return np.array(invalid_strides), np.array(invalid_indices)
-
 
 def compute_gait_metrics(tracks, stride_events, sr, paw1='FR', paw2='FL', metrics=None, plot_metrics=False):
     """
@@ -271,7 +265,6 @@ def compute_gait_metrics(tracks, stride_events, sr, paw1='FR', paw2='FL', metric
 
     return gait_metrics
 
-
 def plot_gait_metrics(gait_metrics):
     """
     Plot distribution of gait metrics.
@@ -310,7 +303,6 @@ def plot_gait_metrics(gait_metrics):
         fig.delaxes(axes[-1, -1])
 
     plt.show()
-
 
 def filter_strides(stride_metrics, stride_metrics_thresholds):
     """
