@@ -4,7 +4,7 @@ import os
 import seaborn as sns
 from matplotlib import pyplot as plt
 import matplotlib
-import ibllib.io.spikeglx
+# import ibllib.io.spikeglx
 import time
 import CareyLib
 from CareyConstants import CareyConstants

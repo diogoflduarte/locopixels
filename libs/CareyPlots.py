@@ -25,11 +25,11 @@ import plotly.graph_objects as go
 import cv2
 import base64
 import pandas as pd
-from pandas.core.common import SettingWithCopyWarning
+# from pandas.core.common import SettingWithCopyWarning
 import warnings
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Button
-warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
+# warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def multiLinePlot(data, colors, linewidth=1, alpha=0.5, x=None):
@@ -809,45 +809,63 @@ def adjust_font_size(ax=plt.gca(), increment=0):
 # def dummyf():
 #     pass
 
-def animate_signal(signal, nframes=None, dt=100):
+def animate_signal(signals, nframes=None, dt=100, colors=None, markersize=10, opacity=1.0):
     """
-    Animate a wrapped phase signal on a polar plot.
+    Animate wrapped phase signals on a polar plot.
 
     Parameters:
-    signal (np.ndarray): An array of phase values varying between 0 and 1.
+    signals (np.ndarray): A 2D array of shape (timepoints, n) with phase values varying between 0 and 1 for each signal.
+    nframes (int, optional): Number of frames to animate. Defaults to the length of the signal.
+    dt (int, optional): Time interval between frames in milliseconds. Defaults to 100 ms.
+    colors (list, optional): List of colors for each signal. Defaults to None.
     """
     # Set up the figure and the polar plot
     fig, ax = plt.subplots(subplot_kw={'projection': 'polar'})
     ax.set_ylim(0, 1.1)  # Set the limit for the radial coordinate
 
-    # Plot setup: initialize a point in the polar plot
-    point, = ax.plot([], [], 'ro')  # Red point
+    n_timepts, n_signals = signals.shape
+
+    if colors is None:
+        colors = ['red'] * n_signals  # Default to red if no colors are provided
+    elif len(colors) != n_signals:
+        raise ValueError("The length of colors must match the number of signals")
+
+    # Plot setup: initialize points in the polar plot
+    points = [ax.plot([], [], 'o', color=colors[i], markersize=markersize, alpha=opacity)[0] for i in range(n_signals)]
 
     if nframes is None:
-        nframes = len(signal)
+        nframes = len(signals)
 
     # Function to initialize the plot
     def init():
-        point.set_data([], [])
-        return point,
-    def update(frame):
-        # Calculate the angle in radians (0 to 2*pi)
-        theta = 2 * np.pi * signal[frame]
+        for point in points:
+            point.set_data([], [])
+        return points
 
-        # Set the new data for the point
-        point.set_data([theta], [1])  # Radius is constant at 1
-        return point,
+    # Function to animate each frame
+    def update(frame):
+        for i, point in enumerate(points):
+            # Calculate the angle in radians (0 to 2*pi)
+            theta = 2 * np.pi * signals[frame, i]
+
+            # Set the new data for the point
+            point.set_data([theta], [1])  # Radius is constant at 1
+        return points
+
+    # Function to stop the animation and close the plot
     def stop(event):
-        # ani._stop()
         ani.event_source.stop()
         plt.close(fig)
+
     # Create the animation
     ani = animation.FuncAnimation(fig, update, frames=nframes,
                                   init_func=init, blit=True, interval=dt, repeat=False)
+
     # Add a stop button
     axstop = plt.axes([0.8, 0.01, 0.1, 0.075])
     bstop = Button(axstop, 'Stop')
     bstop.on_clicked(stop)
+
     plt.show(block=True)
 
     return ani

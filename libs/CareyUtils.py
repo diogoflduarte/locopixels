@@ -643,6 +643,76 @@ def kalman_smooth(signal, dt=1/432, tCov=0.01, obsCov=1.0):
     # Return the smoothed position (first state component)
     return smoothed_state_means[:, 0], kf
 
+
+def find_speed_intervals_in_df(data, speed_column, time_column, threshold, constrain_to=None):
+    """
+    Finds intervals of uninterrupted time where the speed is above a certain threshold.
+
+    Parameters:
+    - data (pd.DataFrame): DataFrame containing the timeseries data.
+    - speed_column (str): Name of the column containing speed values.
+    - time_column (str): Name of the column containing time values.
+    - threshold (float): The speed threshold.
+    - constrain_to (str, optional): Column name to constrain intervals to. Intervals spanning multiple unique values in this column will be split.
+
+    Returns:
+    - intervals (pd.DataFrame): DataFrame containing the start and end times and indices of intervals where the speed is above the threshold.
+    """
+    df = data.copy()
+
+    # Identify points above the threshold
+    df['above_threshold'] = df[speed_column] > threshold
+
+    # Find the start and end of each interval
+    df['block'] = (df['above_threshold'] != df['above_threshold'].shift()).cumsum()
+
+    # If constrain_to is provided, include it in the grouping
+    if constrain_to:
+        df['constraint_block'] = df[constrain_to].astype(str) + '_' + df['block'].astype(str)
+        group_column = 'constraint_block'
+    else:
+        group_column = 'block'
+
+    intervals = df[df['above_threshold']].groupby(group_column).agg(
+        start_time=(time_column, 'first'),
+        end_time=(time_column, 'last'),
+        start_index=(time_column, lambda x: x.index[0]),
+        end_index=(time_column, lambda x: x.index[-1])
+    )
+
+    # Remove blocks that do not meet the threshold
+    intervals = intervals.reset_index(drop=True)
+
+    # Calculate the duration of each interval
+    intervals['duration'] = intervals['end_time'] - intervals['start_time']
+
+    return intervals
+
+def subtract_phases(phase1, phase2):
+    """
+    Subtract two phase values and return the result bounded between -0.5 and 0.5.
+
+    Parameters:
+    phase1 (float or np.ndarray): The first phase value (or array of phase values).
+    phase2 (float or np.ndarray): The second phase value (or array of phase values).
+
+    Returns:
+    float or np.ndarray: The smallest amplitude difference between the phases, bounded between -0.5 and 0.5.
+    """
+
+    pshift = lambda x: (x + 0.5) % 1 - 0.5
+
+    # Subtract the phases
+    phase1 = pshift(phase1)
+    phase2 = pshift(phase2)
+
+    diff = phase1 - phase2
+
+    # Normalize to the range -0.5 to 0.5
+    diff = (diff + 0.5) % 1 - 0.5
+
+    return diff
+
 class phase():
     def subtract(a, b):
         a = phase.phase_to_radians(a)

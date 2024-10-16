@@ -92,17 +92,13 @@ def swing_and_stance_from_dataframe(behav, Acq_Freq=None, SepVector=None, Belts_
     behav['FR_SwOn'], behav['FR_StOn'], behav['HR_SwOn'], behav['HR_StOn'], behav['FL_SwOn'], \
         behav['FL_StOn'], behav['HL_SwOn'], behav['HL_StOn'] = False, False, False, False, False, False, False, False
 
-
-
     trial_array = np.unique(behav.trial)
     for trial_idx, trial in enumerate(tqdm(trial_array)):
 
-        behav['FR_SwOn'], behav['FR_StOn'], behav['HR_SwOn'], behav['HR_StOn'], behav['FL_SwOn'], \
-        behav['FL_StOn'], behav['HL_SwOn'], behav['HL_StOn'] = False, False, False, False, False, False, False, False
+        this_trial_df = behav[behav.trial == trial]
 
         Tracks_file_dict = {}
         Belts_Dict = {}
-        this_trial_df = this_trial_df = behav[behav.trial == trial]
 
         for paw in CareyConstants.paw_labels:
             Tracks_file_dict[f'track_X_{paw}'] = this_trial_df[f'{paw}x'].values
@@ -116,27 +112,38 @@ def swing_and_stance_from_dataframe(behav, Acq_Freq=None, SepVector=None, Belts_
         Belts_Dict["Speed Left"]  = this_trial_df['wheel_speed'].values
         Belts_Dict["Speed Right"] = this_trial_df['wheel_speed'].values
 
-        evs = SwSt_Det_SlopeThres.Pocket_SwSt_Det(Tracks_file_dict, Acq_Freq=Acq_Freq, SepVector=SepVector,
-                                                  Belts_Dict=Belts_Dict, Speed_thr=Speed_thr, CleanArtifs=CleanArtifs,
-                                                  FiltCutOff=FiltCutOff, Det_SwSt=Det_SwSt, SwSt_Outlier_Rej=SwSt_Outlier_Rej,
-                                                  Type_Experiment=Type_Experiment, graph=graph, save=save, verbose=verbose)
+        try:
+            evs = SwSt_Det_SlopeThres.Pocket_SwSt_Det(Tracks_file_dict, Acq_Freq=Acq_Freq, SepVector=SepVector,
+                                                      Belts_Dict=Belts_Dict, Speed_thr=Speed_thr, CleanArtifs=CleanArtifs,
+                                                      FiltCutOff=FiltCutOff, Det_SwSt=Det_SwSt, SwSt_Outlier_Rej=SwSt_Outlier_Rej,
+                                                      Type_Experiment=Type_Experiment, graph=graph, save=save, verbose=verbose)
 
-        trial_length = behav.loc[behav.trial==trial].shape[0]
-        for paw in CareyConstants.paw_labels:
+            coords_lc = ['x', 'y', 'z']
+            coords_uc = ['X', 'Y', 'Z']
+            trial_length = behav.loc[behav.trial==trial].shape[0]
+            for paw in CareyConstants.paw_labels:
 
-            if evs.Behav_Analysis_Dict[paw]['Swing Onset Accepted'] is not None:
-                SwOn_var = evs.Behav_Analysis_Dict[paw]['Swing Onset F val.'][
-                    evs.Behav_Analysis_Dict[paw]['Swing Onset Accepted']]
-                StOn_var = evs.Behav_Analysis_Dict[paw]['Stance Onset F val.'][
-                    evs.Behav_Analysis_Dict[paw]['Stance Onset Accepted']]
+                if evs.Behav_Analysis_Dict[paw]['Swing Onset Accepted'] is not None:
+                    SwOn_var = evs.Behav_Analysis_Dict[paw]['Swing Onset F val.'][
+                        evs.Behav_Analysis_Dict[paw]['Swing Onset Accepted']]
+                    StOn_var = evs.Behav_Analysis_Dict[paw]['Stance Onset F val.'][
+                        evs.Behav_Analysis_Dict[paw]['Stance Onset Accepted']]
+
+                    for ii, c in enumerate(coords_lc):
+                        behav.loc[behav.trial == trial, f'{paw}{c}'] = evs.Behav_Analysis_Dict[paw][coords_uc[ii]]['Traj.']
+
+                    behav.loc[behav.trial == trial, f'{paw}_SwOn'] = np.isin(np.arange(trial_length), SwOn_var)
+                    behav.loc[behav.trial == trial, f'{paw}_StOn'] = np.isin(np.arange(trial_length), StOn_var)
+                else:
+                    SwOn_var = None
+                    StOn_var = None
+
+                    for ii, c in enumerate(coords_lc):
+                        behav.loc[behav.trial == trial, f'{paw}{c}'] = behav.loc[behav.trial == trial, f'{paw}{c}'].interpolate()
                 behav.loc[behav.trial == trial, f'{paw}_SwOn'] = np.isin(np.arange(trial_length), SwOn_var)
                 behav.loc[behav.trial == trial, f'{paw}_StOn'] = np.isin(np.arange(trial_length), StOn_var)
-            else:
-                SwOn_var = None
-                StOn_var = None
-
-            behav.loc[behav.trial == trial, f'{paw}_SwOn'] = np.isin(np.arange(trial_length), SwOn_var)
-            behav.loc[behav.trial == trial, f'{paw}_StOn'] = np.isin(np.arange(trial_length), StOn_var)
+        except:
+            print(f'Failed to stride segment trial {trial}')
 
     return behav
 

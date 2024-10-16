@@ -73,6 +73,7 @@ dfs = [pd.read_csv(os.path.join(c4_results, ff), sep='\t') for ff in c4_output_f
 c4  = pd.concat(dfs).groupby('cluster_id').first().reset_index()
 cell_types = ['PkC_ss', 'MFB', 'GoC', 'MLI', 'PkC_cs']
 cluster_info = pd.read_csv(os.path.join(dataset_folder, 'cluster_info.tsv'), delimiter='\t')
+cluster_info = pd.read_csv(os.path.join(dataset_folder, 'cluster_info.tsv'), delimiter='\t')
 
 
 ## read behavior dataset and get global phase

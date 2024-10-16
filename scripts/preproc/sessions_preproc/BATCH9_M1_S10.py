@@ -134,7 +134,7 @@ if not os.path.exists(tracks_file):
 else:
     tracks_df = pd.read_csv(tracks_file)
 ## Optional: smooth based on likelihoods
-if KALMAN_SMOOTH or 1: # todo: put back
+if KALMAN_SMOOTH:# or 1: # todo: put back
     featmap = [['FRx', 'FR_b_lik'], ['FRy', 'FR_b_lik'], ['FRz', 'FR_s_lik'],
                ['HRx', 'HR_b_lik'], ['HRy', 'HR_b_lik'], ['HRz', 'HR_s_lik'],
                ['FLx', 'FL_b_lik'], ['FLy', 'FL_b_lik'], ['FLz', 'FL_s_lik'],
@@ -182,6 +182,11 @@ else:
 ## TODO: re-run stride segmentation
 print('Running siwng and stance detection')
 
-__ = CareyBehavior.swing_and_stance_from_dataframe(behav[behav.trial==43], Acq_Freq=None, SepVector=None, Belts_Dict=None,
+# behav = CareyBehavior.swing_and_stance_from_dataframe(behav, Acq_Freq=None, SepVector=None, Belts_Dict=None,
+#                  Speed_thr=0.05, CleanArtifs=True, FiltCutOff=60, Det_SwSt=True, SwSt_Outlier_Rej=False,
+#                  Type_Experiment=0, graph=False, save=None, verbose=True)
+
+behav = CareyBehavior.swing_and_stance_from_dataframe(behav, Acq_Freq=None, SepVector=None, Belts_Dict=None,
                  Speed_thr=0.05, CleanArtifs=True, FiltCutOff=60, Det_SwSt=True, SwSt_Outlier_Rej=False,
                  Type_Experiment=0, graph=False, save=None, verbose=True)
+

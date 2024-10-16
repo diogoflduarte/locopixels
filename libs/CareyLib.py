@@ -3,7 +3,7 @@ import os
 import h5py
 import CareyBehavior
 import CareyLib
-import ibllib.io.spikeglx as npx
+# import ibllib.io.spikeglx as npx
 import time
 import numpy as np
 import psutil
@@ -25,7 +25,7 @@ import CareyUtils
 import CareyFileProcessing
 import scipy
 from sklearn.linear_model import LinearRegression
-import ibllib
+# import ibllib
 from scipy.signal import savgol_filter
 from numba import jit
 import warnings
